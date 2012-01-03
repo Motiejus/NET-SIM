@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/2, add_channel/2]).
+-export([start_link/2, add_channel/2, send_event/2]).
 
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
@@ -24,10 +24,12 @@ start_link(Nodeid, Cost) ->
 add_channel(NodeId, Channel) ->
     gen_server:call(NodeId, {add_channel, Channel}).
 
+send_event(NodeId, Event) ->
+    gen_server:call(NodeId, {event, Event}).
+
 %% =============================================================================
 
 init([Nodeid, Cost]) ->
-    io:format("~p~n", [Nodeid]),
     {ok, #state{nodeid=Nodeid, cost=Cost, queue=[], table=[]}}.
 
 handle_cast(Msg, State) ->
@@ -47,6 +49,9 @@ handle_call({add_channel, {Id, Info}=Channel}, _From,
         end,
 
     {ok, State#'state'{channels=Channels1}};
+
+handle_call({event, Event}, _From, State) ->
+    ok;
 
 handle_call(Msg, _From, State) ->
     {reply, ok, State}.

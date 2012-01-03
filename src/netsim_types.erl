@@ -1,7 +1,7 @@
 -module(netsim_types).
 
 -type latency() :: pos_integer().
--type nodeid() :: pos_integer().
+-type nodeid() :: atom().
 -type price() :: integer().
 -type bandwidth() :: pos_integer().
 -type resource() :: pos_integer().

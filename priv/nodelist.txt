@@ -1,7 +1,5 @@
-%% [{nodeid(), price()}]
-[
-    {1, 10},
-    {2, 10},
-    {3, 10},
-    {4, 10},
-].
+%% {nodeid(), price()}
+{kedainiai, 10}.
+{silute, 10}.
+{pabrade, 10}.
+{plunge, 10}.
