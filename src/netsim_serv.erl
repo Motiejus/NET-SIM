@@ -229,9 +229,23 @@ add_resource_test() ->
     ?assertEqual(
         [{{1, [a], {0, 10}}, []}],
         (state(a))#state.table
-    ).
+    ),
+
+    % @todo check b node routes
+    ok.
 
 del_resource_test() ->
-    ?assert(false).
+    % Dirty hack: reuse add_resource_test() setup.
+
+    % Del resource '1' from 'a' node:
+    ok = send_event(#event{nodeid=a, resource=1, action=del_resource}),
+
+    ?assertEqual(
+        [],
+        (state(a))#state.table
+    ),
+
+    % @todo check neighbour nodes routes
+    ok.
 
 -endif.
