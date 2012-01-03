@@ -1,5 +1,6 @@
 -module(netsim_serv).
 
+-include_lib("eunit/include/eunit.hrl").
 -behaviour(gen_server).
 
 -export([start_link/2, add_link/2, send_event/2, state/1]).
@@ -20,8 +21,8 @@ start_link(Nodeid, Cost) ->
     gen_server:start_link({local, Nodeid}, ?MODULE, [Nodeid, Cost], []).
 
 -spec add_link(netsim_types:nodeid(), netsim_types:link()) -> ok.
-add_link(NodeId, Channel) ->
-    gen_server:call(NodeId, {add_link, Channel}).
+add_link(NodeId, Link) ->
+    gen_server:call(NodeId, {add_link, Link}).
 
 send_event(NodeId, Event) ->
     gen_server:call(NodeId, {event, Event}).
@@ -41,20 +42,20 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 %% @FIXME:
-handle_call({add_link, {Id, Info}=Channel}, _From,
-        #'state'{queues=Channels}=State) ->
+handle_call({add_link, {Id, Info}=Link}, _From,
+        #'state'{queues=Links}=State) ->
 
-    Channels1 = 
-        case proplists:get_value(Id, Channels, '$undefined') of 
+    Links1 = 
+        case proplists:get_value(Id, Links, '$undefined') of 
             '$undefined' ->
-                [Channel | Channels]; % add new link
+                [Link | Links]; % add new link
             Info ->
                 ok; % link already exists
             NewRouteInfo ->
                 throw(not_unique_link_id)
         end,
 
-    {ok, State#'state'{queues=Channels1}};
+    {ok, State#'state'{queues=Links1}};
 
 handle_call({event, {add_resource, {NodeId, ResId}}}, _From, State) ->
     ok;
@@ -89,19 +90,19 @@ send_msg(Msg, #'state'{queues=Queues}=State) ->
     % Insert new queue item to each queue:
     Queues1 = 
         lists:map(
-            fun ({{CId, {_From, _To, Metrics}}=C, Queue}) ->
+            fun ({{_From, _To, Metrics}=L, Queue}) ->
                 Latency = proplists:get_value(latency, Metrics),
-                Bandwith = proplists:get_value(bandwidth, Metrics),
+                Bandwidth = proplists:get_value(bandwidth, Metrics),
 
-                TimeToSend = Latency + (sizeof(Msg) / Bandwith),
+                TimeToSend = Latency + (sizeof(Msg) div Bandwidth),
                 Item =  [{Msg, TimeToSend}],
 
-                {C, Queue ++ [Item]}
+                {L, Queue ++ Item}
             end,
             Queues
         ),
 
-    State#'state'{queues=Queues}.
+    State#'state'{queues=Queues1}.
 
 %% @doc Returns term() size in bits.
 sizeof(Term) ->
@@ -114,18 +115,19 @@ sizeof(Term) ->
 -include_lib("eunit/include/eunit.hrl").
 
 %% @todo
-test_sizeof() ->
-    ?assertEqual(10, sizeof({a, b, c})).
+sizeof_test() ->
+    ?assertEqual(120, sizeof({a, b, c})).
 
-test_send_msg() ->
-    Channel = {erlang:make_ref(), {a, b, [{latency, 20}, {bandwith, 64}]}},
-    Queues = [{Channel, []}],
+send_msg_test() ->
+    Msg = {a, b, c},
+    Link = {a, b, [{latency, 20}, {bandwidth, 64}]},
+    Queues = [{Link, []}],
 
-    #'state'{queues=Queues1} = send_msg({a, b, c}, #'state'{queues=Queues}),
+    #'state'{queues=Queues1} = send_msg(Msg, #'state'{queues=Queues}),
 
-    %?assertEqual(
-    %    [
-    ok.
-
+    ?assertMatch(
+        [{{a, b, [_, _]}, [{Msg, 21}]}],
+        Queues1
+    ).
 
 -endif.
