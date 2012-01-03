@@ -15,10 +15,7 @@
         table :: netsim_types:route_table(),
         price :: netsim_types:price(),
         tick = 0 :: pos_integer(), % current tick
-        pending_responses = [] :: [netsim_types:nodeid()],
-
-        % Whom to reply when tick completes
-        report_when_finished = undefined :: netsim_types:nodeid()
+        pending_responses = [] :: [netsim_types:nodeid()]
     }).
 
 %% =============================================================================
@@ -56,16 +53,13 @@ init([Nodeid, Price]) ->
     {ok, #state{nodeid=Nodeid, price=Price, queues=[], table=[]}}.
 
 handle_cast({update_complete, NodeId},
-    State=#state{pending_responses=Resp, report_when_finished=To}) ->
-    case Resp of
-        NodeId -> % Finish getting the replies, we can send clock "done"
-            gen_server:reply(To, ok);
-        _ when is_list(Resp) ->
-            State#state{
-                pending_responses=lists:delete(NodeId, Resp),
-                report_when_finished=undefined
-            }
-    end;
+    State=#state{pending_responses=Resp}) ->
+    if
+        Resp == [NodeId] -> % Last reply, we can send clock "done"
+            netsim_clock_serv:node_work_complete(NodeId);
+        true -> ok
+    end,
+    State#state{pending_responses=lists:delete(NodeId, Resp)};
 
 handle_cast({route, #route{action=change}, ReportCompleteTo},
     #state{table=RouteTable0, nodeid=NodeId}=State) ->
@@ -81,25 +75,25 @@ handle_cast({route, #route{action=change}, ReportCompleteTo},
 handle_cast(Msg, State) ->
     {noreply, State}.
 
-handle_call(tick, From, #state{nodeid=NodeId, tick=Tick, queues=Queues}=State) ->
-    % @todo 1) process queues; 2) send back tick to clock
-
+handle_call(tick, _From, #state{nodeid=NodeId, queues=Queues}=State) ->
     % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
     % link() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics()}.
 
-    S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == Tick],
+    S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == 0],
     % S :: [{To :: nodeid(), Route :: #route{}}]
+
+    % @todo update every queue head: decrease Tick
 
     Pending = [To || {To, _Route} <- S],
     [send_route(To, Route, self()) || {To, Route} <- S],
-    {noreply, State#state{pending_responses=Pending, report_when_finished=From}};
+    {noreply, State#state{pending_responses=Pending}};
 
 %% @doc Inserts link (into queue).
 handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
         #state{queues=Queues, nodeid=NodeId}=State) ->
 
     % From should be current process NodeId:
-    {From, To} = 
+    {From, To} =
         case From0 of
             NodeId -> {From0, To0};
             _ -> {To0, From0}
@@ -113,7 +107,7 @@ handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
                 % New link:
                 ({{F, T, M}, Queue}, Acc)
                         when F == From, T == To, M /= Metrics ->
-                   Acc; 
+                   Acc;
                 % Existing link:
                 ({L, _}, Acc) when L == Link ->
                     Acc;
@@ -146,9 +140,9 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
 
     % Propogate the new resource to neighbours:
     Msg = #route{nodeid=NodeId, route=Route, resource=R, action=add, time=Tick},
-    State1 = send_msg(Msg, State#state{table=RouteTable1}), 
+    State1 = send_msg(Msg, State#state{table=RouteTable1}),
 
-    {reply, ok, State1}; 
+    {reply, ok, State1};
 
 %% @doc Delete resource.
 handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
@@ -170,7 +164,7 @@ handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
     Msg =
         #route{nodeid=NodeId, route=Route, resource=R, action=del, time=Tick},
     State1 = send_msg(Msg, State#state{table=RouteTable1}),
-            
+
     {reply, ok, State1};
 
 %% @doc Updates process tick.
@@ -207,7 +201,7 @@ code_change(_, _, State) ->
 -spec send_msg(#route{}, #state{}) -> #state{}.
 send_msg(Msg, #state{queues=Queues}=State) ->
     % Insert new queue item to each queue:
-    Queues1 = 
+    Queues1 =
         lists:map(
             fun ({{_From, _To, Metrics}=L, Queue}) ->
                 Latency = proplists:get_value(latency, Metrics),
