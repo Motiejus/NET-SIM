@@ -9,12 +9,11 @@
                             {bandwidth, bandwidth()}.
 -type metrics() :: [metric_attribute()].
 -type link() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics()}.
--type channel() :: {Id :: reference(), link()}.
--type path() :: [channel()].
+-type path() :: [link()].
 -type cost() :: {latency(), price()}.
 -type route() :: {resource(), path(), cost()}.
--type route_table() :: [route()].
--type msg_queue() :: [{channel(), [{TimeLeft :: pos_integer(), route()}] }].
+-type route_table() :: [{route(), History :: route()}].
+-type msg_queue() :: {link(), [{TimeLeft :: pos_integer(), Msg :: term()}]}.
 
 -type simulation_event() :: {
     latency(),
@@ -23,7 +22,6 @@
     resource()
 }.
 
-
 -export_types([latency/0, nodeid/0, metric_attribute/0, metrics/0,
-        channel/0, resource/0, path/0, cost/0, route/0, route_table/0,
+        resource/0, path/0, cost/0, route/0, route_table/0,
         price/0, msg_queue/0, simulation_event/0]).

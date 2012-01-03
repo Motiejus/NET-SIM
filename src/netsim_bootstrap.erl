@@ -7,7 +7,7 @@
 %% @doc Runs init with args.`
 init() ->
     init("./priv/nodelist.txt",
-        "./priv/channels.txt"
+        "./priv/channels.txt",
         "./priv/simulation.txt").
 
 %% @doc Reads data from files and creates new nodes setup.
