@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -behaviour(gen_server).
 
--export([start_link/2, add_link/2, send_event/2, state/1]).
+-export([start_link/2, add_link/2, send_event/1, tick/2, state/1]).
 
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
@@ -13,7 +13,8 @@
         queues :: [netsim_types:msg_queue()],
         nodeid :: netsim_types:nodeid(),
         table :: netsim_types:route_table(),
-        cost :: netsim_types:cost()
+        cost :: netsim_types:cost(),
+        tick = 0 :: pos_integer() % current tick
     }).
 
 %% =============================================================================
@@ -25,9 +26,15 @@ start_link(Nodeid, Cost) ->
 add_link(NodeId, Link) ->
     gen_server:call(NodeId, {add_link, Link}).
 
+%% @doc Sends event to a node.
 -spec send_event(#'event'{}) -> ok.
 send_event(Event=#event{nodeid=NodeId}) ->
     gen_server:call(NodeId, {event, Event}).
+
+%% @doc Sends tick to a node.
+-spec tick(netsim_types:nodeid(), pos_integer()) -> ok.
+tick(NodeId, TickNr) ->
+    gen_server:call(NodeId, {tick, TickNr}).
 
 multicast() ->
     ok.
@@ -81,6 +88,15 @@ handle_call({event, Ev=#event{action=add_resource}}, _From, State) ->
 
 handle_call({event, Ev=#event{action=del_resource}}, _From, State) ->
     ok;
+
+%% @doc Updates process' tick.
+handle_call({tick, Tick}, _From, #'state'{tick=T}=State) ->
+    case (T+1) of
+        Tick ->
+            {reply, ok, State#'state'{tick=Tick}};
+        _ ->
+            throw({inconsistent_tick, T, Tick})
+    end;
 
 handle_call({event, Event}, _From, State) ->
     ok;
