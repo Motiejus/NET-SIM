@@ -4,12 +4,12 @@
 -type nodeid() :: pos_integer().
 -type price() :: integer().
 -type bandwidth() :: pos_integer().
+-type resource() :: pos_integer().
 -type metric_attribute() :: {latency, latency()} | {price, price()} |
                             {bandwidth, bandwidth()}.
 -type metrics() :: [metric_attribute()].
--type channel() :: {Id :: reference(),  {From :: nodeid(), To :: nodeid(),
-                    Metrics :: metrics()}}.
--type resource() :: pos_integer().
+-type link() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics()}.
+-type channel() :: {Id :: reference(), link()}.
 -type path() :: [channel()].
 -type cost() :: {latency(), price()}.
 -type route() :: {resource(), path(), cost()}.
