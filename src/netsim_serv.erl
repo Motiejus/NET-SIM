@@ -92,8 +92,8 @@ handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
 
 handle_call({route, #route{action=change}}, _From,
         #state{table=RouteTable0}=State) ->
-
     % Change current route
+
     % Propagate current route
 
     % @todo
@@ -157,9 +157,6 @@ handle_call({tick, Tick}, _From, #state{nodeid=NodeId, tick=T}=State) ->
         _ ->
             throw({inconsistent_tick, T, Tick})
     end;
-
-handle_call({event, Event}, _From, State) ->
-    ok;
 
 handle_call(state, _From, State) ->
     {reply, State, State};
