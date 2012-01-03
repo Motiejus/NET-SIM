@@ -1,4 +1,5 @@
 -module(netsim_serv).
+-include("include/netsim.hrl").
 
 -behaviour(gen_server).
 
@@ -23,7 +24,8 @@ start_link(Nodeid, Cost) ->
 add_link(NodeId, Channel) ->
     gen_server:call(NodeId, {add_link, Channel}).
 
-send_event(NodeId, Event) ->
+-spec send_event(#'event'{}) -> ok.
+send_event(Event=#event{nodeid=NodeId}) ->
     gen_server:call(NodeId, {event, Event}).
 
 multicast() ->
@@ -56,10 +58,10 @@ handle_call({add_link, {Id, Info}=Channel}, _From,
 
     {ok, State#'state'{queues=Channels1}};
 
-handle_call({event, {add_resource, {NodeId, ResId}}}, _From, State) ->
+handle_call({event, Ev=#event{action=add_resource}}, _From, State) ->
     ok;
 
-handle_call({event, {del_resource, {NodeId, ResId}}}, _From, State) ->
+handle_call({event, Ev=#event{action=del_resource}}, _From, State) ->
     ok;
 
 handle_call({event, Event}, _From, State) ->
