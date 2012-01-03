@@ -1,0 +1,7 @@
+%% [{ Time :: latency(), add_resource, nodeid(), resource() }]
+%% [{ Time :: latency(), del_resource, nodeid(), resource() }]
+[
+    {0, add_resource, {1, 1}},
+    {10, add_resource, {1, 2}},
+    {20, del_resource, {2, 3}}
+].
