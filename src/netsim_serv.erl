@@ -41,21 +41,38 @@ init([Nodeid, Cost]) ->
 handle_cast(Msg, State) ->
     {noreply, State}.
 
-%% @FIXME:
-handle_call({add_link, {Id, Info}=Link}, _From,
-        #'state'{queues=Links}=State) ->
+%% @doc Inserts link (into queue).
+handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
+        #'state'{queues=Queues, nodeid=NodeId}=State) ->
 
-    Links1 = 
-        case proplists:get_value(Id, Links, '$undefined') of 
-            '$undefined' ->
-                [Link | Links]; % add new link
-            Info ->
-                ok; % link already exists
-            NewRouteInfo ->
-                throw(not_unique_link_id)
+    % From should be current process NodeId:
+    {From, To} = 
+        case From0 of
+            NodeId -> {From0, To0};
+            _ -> {To0, From0}
         end,
+    Link = {From, To, Metrics},
 
-    {ok, State#'state'{queues=Links1}};
+    % Update queues (insert new link):
+    Queues1 =
+        lists:foldl(
+            fun
+                % New link:
+                ({{F, T, M}, Queue}, Acc)
+                        when F == From, T == To, M /= Metrics ->
+                   Acc; 
+                % Existing link:
+                ({L, _}, Acc) when L == Link ->
+                    Acc;
+                % Other:
+                (Q, Acc) ->
+                    [Q|Acc]
+            end,
+            [],
+            Queues
+        ) ++ [{Link, []}],
+
+    {reply, ok, State#'state'{queues=Queues1}};
 
 handle_call({event, {add_resource, {NodeId, ResId}}}, _From, State) ->
     ok;
@@ -95,9 +112,9 @@ send_msg(Msg, #'state'{queues=Queues}=State) ->
                 Bandwidth = proplists:get_value(bandwidth, Metrics),
 
                 TimeToSend = Latency + (sizeof(Msg) div Bandwidth),
-                Item =  [{Msg, TimeToSend}],
+                Item =  {Msg, TimeToSend},
 
-                {L, Queue ++ Item}
+                {L, Queue ++ [Item]}
             end,
             Queues
         ),
@@ -128,6 +145,15 @@ send_msg_test() ->
     ?assertMatch(
         [{{a, b, [_, _]}, [{Msg, 21}]}],
         Queues1
+    ).
+
+add_link_test() ->
+    start_link(a, 10),
+    add_link(a, {b, a, [metrics0]}),
+
+    ?assertEqual(
+        [{{a, b, [metrics0]}, []}],
+        (state(a))#'state'.queues
     ).
 
 -endif.
