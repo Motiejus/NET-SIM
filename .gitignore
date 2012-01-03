@@ -1,3 +1,4 @@
 deps/*
 ebin/*
 .*.swp
+erl_crash.dump

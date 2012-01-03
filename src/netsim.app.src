@@ -1,12 +1,13 @@
-{application, netsim,
- [
-  {description, ""},
-  {vsn, "1"},
-  {registered, []},
-  {applications, [
-                  kernel,
-                  stdlib
-                 ]},
-  {mod, { netsim_app, []}},
-  {env, []}
- ]}.
+{application, netsim, [
+    {description, "NET-SIM"},
+    {vsn, "0"},
+    {modules, [
+        netsim
+    ]},
+    {registered, [
+
+    ]},
+    {applications, [kernel, stdlib, sasl]},
+    {mod, {netsim, []}}
+]}.
+

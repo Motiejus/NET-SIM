@@ -39,15 +39,14 @@ handle_call({add_channel, {Id, Info}=Channel}, _From,
     Channels1 = 
         case proplists:get_value(Id, Channels, '$undefined') of 
             '$undefined' ->
-                % @todo
-                do_smthng;
+                [Channel | Channels]; % add new channel
             Info ->
                 ok; % channel already exists
             NewRouteInfo ->
                 throw(not_unique_channel_id)
         end,
 
-    {ok, State#'state'{channels=Channels}};
+    {ok, State#'state'{channels=Channels1}};
 
 handle_call(Msg, _From, State) ->
     {reply, ok, State}.
