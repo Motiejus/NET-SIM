@@ -13,7 +13,8 @@
 -type path() :: [nodeid()].
 -type cost() :: {latency(), price()}.
 -type route() :: {resource(), path(), cost()}.
--type route_table() :: [{CurrentRoute :: route(), History :: [route()]}].
+-type route_table() :: [{resource(), [route()]}]. % Head of [route()] is the
+%% most optimal route.
 -type msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
 
 -export_types([latency/0, nodeid/0, metric_attribute/0, metrics/0,

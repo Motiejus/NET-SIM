@@ -11,5 +11,6 @@
     action :: add | del,
     nodeid :: netsim_types:nodeid(), % from
     time :: netsim_types:latency(),
-    routes :: [netsim_types:route()]
+    route :: [netsim_types:route()],
+    resource :: netsim_types:resource()
 }).

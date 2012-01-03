@@ -105,8 +105,8 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
         #state{table=RouteTable0, nodeid=NodeId, price=Price, tick=Tick,
                 queues=Queues}=State) ->
     % Check if given resource does exist:
-    case ([RTEntry || {{R, _, _}, _}=RTEntry <- RouteTable0]) of
-        [] ->
+    case proplists:get_value(R, RouteTable0, '$undefined') of
+        '$undefined' ->
             ok;
         _ ->
             throw({resource_already_exists, R})
@@ -114,11 +114,11 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
 
     % Add new route into table:
     Cost = {0, 0},
-    Route = {{R, [NodeId], Cost}, []},
+    Route = {R, [{R, [NodeId], Cost}]},
     RouteTable1 = [Route|RouteTable0],
 
     % Propogate the new resource to neighbours:
-    Msg = #route{nodeid=NodeId, routes=[Route], action=add, time=Tick},
+    Msg = #route{nodeid=NodeId, route=Route, resource=R, action=add, time=Tick},
     State1 = send_msg(Msg, State#state{table=RouteTable1}), 
 
     {reply, ok, State1}; 
@@ -127,23 +127,21 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
 handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
         #state{table=RouteTable0, tick=Tick, nodeid=NodeId,
             queues=Queues}=State) ->
-    % Find routes that are affected by del_resource id and have to be deleted:
-    {RoutesToBeDeleted, RouteTable1} = 
-        lists:foldl(
-            fun
-                % Current route resource = resource to be deleted:
-                ({{Res, _, _}=CR, Rs}, {DeleteAcc, TableAcc}) when Res == R ->
-                    {[[CR|Rs]|DeleteAcc], TableAcc};
-                ({CR, Rs}=Entry, {DeleteAcc, TableAcc}) ->
-                    {DeleteAcc, [Entry|TableAcc]}
-            end,
-            {[], []},
-            RouteTable0
-        ),
+    % Find route that is affected by del_resource resource id and
+    % have to be deleted:
+    Route =
+        case proplists:get_value(R, RouteTable0) of
+            [{R, [NodeId], _}]=Route0 -> Route0;
+            Route0 ->
+                throw({inconsistent_route_table, {del_resource, R},
+                        RouteTable0})
+        end,
+    % Delete route from table:
+    RouteTable1 = proplists:delete(R, RouteTable0),
 
     % Propogate route deletion to neighbours:
     Msg =
-        #route{nodeid=NodeId, routes=RoutesToBeDeleted, action=del, time=Tick},
+        #route{nodeid=NodeId, route=Route, resource=R, action=del, time=Tick},
     State1 = send_msg(Msg, State#state{table=RouteTable1}),
             
     {reply, ok, State1};
@@ -175,8 +173,8 @@ code_change(_, _, State) ->
 
 %% =============================================================================
 
-%% @doc Puts message to all queues.
--spec send_msg(term(), #state{}) -> #state{}.
+%% @doc Puts route message to all outgoing queues.
+-spec send_msg(#route{}, #state{}) -> #state{}.
 send_msg(Msg, #state{queues=Queues}=State) ->
     % Insert new queue item to each queue:
     Queues1 = 
@@ -198,6 +196,23 @@ send_msg(Msg, #state{queues=Queues}=State) ->
 %% @doc Returns term() size in bits.
 sizeof(Term) ->
     erlang:bit_size(term_to_binary(Term)).
+
+%% @doc Changes route table.
+%% Change steps:
+%% 1) Check if NewRoute->nodeid is in CurrentRoute->path:
+%% 1.1) True: Check if there is no loop in NewRoute->route:
+%% 1.1.1) True: delete CurrentRoute, take the best route from History, send msg
+%%        change to neighbours;
+%% 1.1.2) False: update CurrentRoute, send change msg to neighbours;
+%% 1.2) False: update route History and reelect a new best route, if new best
+%% route is found, @todo loop send msg to neighbours about it;
+%% @todo FIX #route.routes -> #route.route
+change_route(
+        #route{nodeid=NeighbourNodeId, route=NewRoute},
+        #state{table=RouteTable0, nodeid=Nodeid}=State) ->
+    {_Resource, Path, Cost} = NewRoute,
+
+    ok.
 
 %% =============================================================================
 
@@ -239,10 +254,10 @@ add_resource_test() ->
     add_link(b, {b, a, [{latency, 20}, {bandwidth, 64}]}),
 
     % Add resource '1' to 'a' node:
-    ok = send_event(#event{nodeid=a, resource=1, action=add_resource}),
+    ok = send_event(#event{nodeid=a, resource={a, 1}, action=add_resource}),
 
     ?assertEqual(
-        [{{1, [a], {0, 0}}, []}],
+        [{{a, 1}, [{{a, 1}, [a], {0, 0}}]}],
         (state(a))#state.table
     ),
 
@@ -255,7 +270,7 @@ del_resource_test() ->
     % Dirty hack: reuse add_resource_test() setup.
 
     % Del resource '1' from 'a' node:
-    ok = send_event(#event{nodeid=a, resource=1, action=del_resource}),
+    ok = send_event(#event{nodeid=a, resource={a, 1}, action=del_resource}),
 
     ?assertEqual(
         [],
