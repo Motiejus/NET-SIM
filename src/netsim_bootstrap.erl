@@ -22,7 +22,7 @@ init(NodesFiles, ChannelsFile, SimulationFile) ->
     {ok, SimulationFile} = file:consult(SimulationFile),
 
     % Send SimulationFile to clock_serv
-    netsim_clock_serv:send_simulation_file(SimulationFile),
+    netsim_clock_serv:send_data_file(SimulationFile),
 
     % Start nodes without channels:
     [netsim_sup:add_node(Id, Price) || {Id, Price} <- NodesList],
