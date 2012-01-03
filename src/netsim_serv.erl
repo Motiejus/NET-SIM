@@ -10,7 +10,7 @@
         handle_info/2, terminate/2]).
 
 -record(state, {
-        queues :: [netsim_types:msg_queue()],
+        queues = [] :: [netsim_types:msg_queue()],
         nodeid :: netsim_types:nodeid(),
         table :: netsim_types:route_table(),
         price :: netsim_types:price(),
@@ -30,6 +30,10 @@ add_link(NodeId, Link) ->
 -spec send_event(#'event'{}) -> ok.
 send_event(Event=#event{nodeid=NodeId}) ->
     gen_server:call(NodeId, {event, Event}).
+
+%% @doc Sends route (add/del) event.
+send_route(NodeId, #route{}=Route) ->
+    gen_server:call(NodeId, {route, Route}).
 
 %% @doc Sends tick to a node.
 -spec tick(netsim_types:nodeid(), pos_integer()) -> ok.
@@ -85,9 +89,17 @@ handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
 
     {reply, ok, State#state{queues=Queues1}};
 
+handle_call({route, #route{action=add}}, _From,
+        #state{table=RouteTable0}=State) ->
+
+    % @todo
+
+    ok;
+
 %% @doc Add new resource.
 handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
-        #state{table=RouteTable0, nodeid=NodeId, price=Price}=State) ->
+        #state{table=RouteTable0, nodeid=NodeId, price=Price, tick=Tick,
+                queues=Queues}=State) ->
     % Check if given resource does exist:
     case ([RTEntry || {{R, _, _}, _}=RTEntry <- RouteTable0]) of
         [] ->
@@ -98,18 +110,21 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
 
     % Add new resource:
     Cost = {0, Price},
-    RouteTable1 = [{{R, [NodeId], Cost}, []} | RouteTable0],
+    Route = {{R, [NodeId], Cost}, []},
+    RouteTable1 = [Route|RouteTable0],
 
     % Propogate the new resource to neighbours:
-    % @todo
+    Msg = #route{nodeid=NodeId, routes=[Route], action=add, time=Tick},
+    State1 = send_msg(Msg, State#state{table=RouteTable1}), 
 
-    {reply, ok, #state{table=RouteTable1}}; 
+    {reply, ok, State1}; 
 
 %% @doc Delete resource.
 handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
-        #state{table=RouteTable0}=State) ->
+        #state{table=RouteTable0, tick=Tick, nodeid=NodeId,
+            queues=Queues}=State) ->
     % Find routes that are affected by del_resource id and have to be deleted:
-    {RoutsToBeDeleted, RouteTable1} = 
+    {RoutesToBeDeleted, RouteTable1} = 
         lists:foldl(
             fun
                 % Current route resource = resource to be deleted:
@@ -122,10 +137,12 @@ handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
             RouteTable0
         ),
 
-    % @todo send msg to neighbours about deletion
-    send_msg,
+    % Propogate route deletion to neighbours:
+    Msg =
+        #route{nodeid=NodeId, routes=RoutesToBeDeleted, action=del, time=Tick},
+    State1 = send_msg(Msg, State#state{table=RouteTable1}),
             
-    {reply, ok, State#state{table=RouteTable1}};
+    {reply, ok, State1};
 
 %% @doc Updates process tick.
 handle_call({tick, Tick}, _From, #state{nodeid=NodeId, tick=T}=State) ->
@@ -178,9 +195,6 @@ send_msg(Msg, #state{queues=Queues}=State) ->
 
     State#state{queues=Queues1}.
 
-multicast() ->
-    ok.
-
 %% @doc Returns term() size in bits.
 sizeof(Term) ->
     erlang:bit_size(term_to_binary(Term)).
@@ -221,8 +235,9 @@ add_resource_test() ->
     start_link(a, 10),
     start_link(b, 20),
     % Create link between them:
-    add_link(a, {b, a, [{latency, 20}, {bandwith, 64}]}),
-    add_link(b, {b, a, [{latency, 20}, {bandwith, 64}]}),
+    add_link(a, {b, a, [{latency, 20}, {bandwidth, 64}]}),
+    add_link(b, {b, a, [{latency, 20}, {bandwidth, 64}]}),
+
     % Add resource '1' to 'a' node:
     ok = send_event(#event{nodeid=a, resource=1, action=add_resource}),
 
@@ -231,8 +246,10 @@ add_resource_test() ->
         (state(a))#state.table
     ),
 
-    % @todo check b node routes
-    ok.
+    ?assertMatch(
+        [{{a, b, _}, [_]}],
+        (state(a))#state.queues
+    ).
 
 del_resource_test() ->
     % Dirty hack: reuse add_resource_test() setup.
@@ -245,7 +262,9 @@ del_resource_test() ->
         (state(a))#state.table
     ),
 
-    % @todo check neighbour nodes routes
-    ok.
+    ?assertMatch(
+        [{{a, b, _}, [_, _]}],
+        (state(a))#state.queues
+    ).
 
 -endif.
