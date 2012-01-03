@@ -90,8 +90,11 @@ handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
 
     {reply, ok, State#state{queues=Queues1}};
 
-handle_call({route, #route{action=add}}, _From,
+handle_call({route, #route{action=change}}, _From,
         #state{table=RouteTable0}=State) ->
+
+    % Change current route
+    % Propagate current route
 
     % @todo
 
@@ -110,7 +113,7 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
     end,
 
     % Add new route into table:
-    Cost = {0, Price},
+    Cost = {0, 0},
     Route = {{R, [NodeId], Cost}, []},
     RouteTable1 = [Route|RouteTable0],
 
@@ -242,7 +245,7 @@ add_resource_test() ->
     ok = send_event(#event{nodeid=a, resource=1, action=add_resource}),
 
     ?assertEqual(
-        [{{1, [a], {0, 10}}, []}],
+        [{{1, [a], {0, 0}}, []}],
         (state(a))#state.table
     ),
 
