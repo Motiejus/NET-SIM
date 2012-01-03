@@ -11,7 +11,7 @@
         handle_info/3, handle_sync_event/4, handle_event/3]).
 
 %% gen_fsm state callbacks
--export([wait_for_data/2, send_tick/2, node_work_complete/2]).
+-export([wait_for_data/2, send_tick/2, node_ack/2]).
 
 -record(state, {
         time = 0 :: pos_integer(),
@@ -23,7 +23,7 @@
 %% API
 %% =============================================================================
 send_data_file(Simulation) ->
-    gen_fsm:send_event(?NETSIM_CLOCK, {sim_data, Simulation}).
+    gen_fsm:send_event(?NETSIM_CLOCK, {data_file, Simulation}).
 
 start_simulation() ->
     ok.
@@ -32,19 +32,19 @@ start_link() ->
     gen_server:start_link({local, ?NETSIM_CLOCK}, ?MODULE, [], []).
 
 node_work_complete(NodeId) ->
-    gen_server:cast(?NETSIM_CLOCK, {node_work_complete, NodeId}).
+    gen_server:cast(?NETSIM_CLOCK, {node_ack, NodeId}).
 
 
 %% Ticking implementation
 %% =============================================================================
 -spec wait_for_data([#event{}], #state{}) -> {next_state, send_tick, #state{}}.
-wait_for_data({sim_data, Data}, State=#state{}) ->
+wait_for_data({data_file, Data}, State=#state{}) ->
     gen_fsm:send_event(?NETSIM_CLOCK, tick),
     {next_state, send_tick, State#state{data=Data}}.
 
 %% @doc Have a message to send. Flush messages
 %%
-%% That are supposed to happen during this tick
+%% That are supposed to be flushed during this tick
 -spec send_tick(tick, #state{}) -> {next_state, send_tick, #state{}}.
 send_tick(tick, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
     netsim_serv:send_event(E),
@@ -53,20 +53,20 @@ send_tick(tick, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
 %% @doc Just a tick for every node
 send_tick(tick, State=#state{time=Watch}) ->
     % enqueue another tick for future
-    gen_fsm:send_event(?NETSIM_CLOCK, tick),
+    gen_fsm:send_event(self(), tick),
 
     % Enqueue a tick to all nodes
     Nodes = netsim_sup:list_nodes(),
     [netsim_serv:tick(Node, Watch) || Node <- Nodes],
-    {next_state, node_work_complete, State#state{time=Watch+1, nodes=Nodes}}.
+    {next_state, node_ack, State#state{time=Watch+1, nodes=Nodes}}.
 
-node_work_complete(Node, State=#state{nodes=[Node]}) ->
+node_ack(Node, State=#state{nodes=[Node]}) ->
     {next_state, send_tick, State#state{nodes=[]}};
 
-node_work_complete(Node, State=#state{nodes=Nodes}) ->
+node_ack(Node, State=#state{nodes=Nodes}) ->
     case lists:member(Node, Nodes) of
         true ->
-            {next_state, node_work_complete,
+            {next_state, node_ack,
                 State#state{nodes=lists:delete(Node, Nodes)}};
         false ->
             throw({node_already_deleted, Node})
@@ -86,3 +86,8 @@ terminate(normal, _, State) ->
     State.
 code_change(_, _, _, State) ->
     {ok, State}.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-endif.
