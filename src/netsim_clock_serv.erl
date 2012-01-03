@@ -1,23 +1,29 @@
 -module(netsim_clock_serv).
 -include("include/netsim.hrl").
 
--behaviour(gen_server).
+-behaviour(gen_fsm).
 
--export([start_link/0, start_simulation/0, send_simulation_file/1]).
+%% API callbacks
+-export([start_link/0, start_simulation/0, node_work_complete/1, send_data_file/1]).
 
--export([init/1, handle_cast/2, handle_call/3, code_change/3,
-        handle_info/2, terminate/2]).
+%% gen_fsm callbacks
+-export([init/1, code_change/4, terminate/3,
+        handle_info/3, handle_sync_event/4, handle_event/3]).
+
+%% gen_fsm state callbacks
+-export([wait_for_data/2, send_tick/2, node_work_complete/2]).
 
 -record(state, {
-        watch = 0 :: pos_integer(),
-        simulation = [] :: [#'event'{}]
+        time = 0 :: pos_integer(),
+        data = [] :: [#'event'{}],
+        nodes = [] :: [atom()] % Atoms of nodes that did not send ack
     }
 ).
 
 %% API
 %% =============================================================================
-send_simulation_file(Simulation) ->
-    gen_server:cast(?NETSIM_CLOCK, {send_simulation, Simulation}).
+send_data_file(Simulation) ->
+    gen_fsm:send_event(?NETSIM_CLOCK, {sim_data, Simulation}).
 
 start_simulation() ->
     ok.
@@ -25,56 +31,58 @@ start_simulation() ->
 start_link() ->
     gen_server:start_link({local, ?NETSIM_CLOCK}, ?MODULE, [], []).
 
+node_work_complete(NodeId) ->
+    gen_server:cast(?NETSIM_CLOCK, {node_work_complete, NodeId}).
+
 
 %% Ticking implementation
 %% =============================================================================
--spec tick(#state{}) -> {noreply, #state{}}.
-%% @doc No actions left, just tick
-tick(State=#state{simulation=[]}) ->
-    send_tick(State);
-
-%% @doc No messages to send to the nodes, simply tick
-tick(State=#state{watch=W, simulation=[#event{time=T}|_]}) when W < T ->
-    send_tick(State);
+-spec wait_for_data([#event{}], #state{}) -> {next_state, send_tick, #state{}}.
+wait_for_data({sim_data, Data}, State=#state{}) ->
+    gen_fsm:send_event(?NETSIM_CLOCK, tick),
+    {next_state, send_tick, State#state{data=Data}}.
 
 %% @doc Have a message to send. Flush messages
 %%
-%% that are supposed to happen during this tick
-tick(State=#state{watch=Watch, simulation=[Event=#event{}|Events]}) ->
-    netsim_serv:send_event(Event),
-    tick(State#state{simulation=Events}).
+%% That are supposed to happen during this tick
+-spec send_tick(tick, #state{}) -> {next_state, send_tick, #state{}}.
+send_tick(tick, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
+    netsim_serv:send_event(E),
+    {next_state, send_tick, S#state{data=Evs}};
 
-%% gen_server callbacks
+%% @doc Just a tick for every node
+send_tick(tick, State=#state{time=Watch}) ->
+    % enqueue another tick for future
+    gen_fsm:send_event(?NETSIM_CLOCK, tick),
+
+    % Enqueue a tick to all nodes
+    Nodes = netsim_sup:list_nodes(),
+    [netsim_serv:tick(Node, Watch) || Node <- Nodes],
+    {next_state, node_work_complete, State#state{time=Watch+1, nodes=Nodes}}.
+
+node_work_complete(Node, State=#state{nodes=[Node]}) ->
+    {next_state, send_tick, State#state{nodes=[]}};
+
+node_work_complete(Node, State=#state{nodes=Nodes}) ->
+    case lists:member(Node, Nodes) of
+        true ->
+            {next_state, node_work_complete,
+                State#state{nodes=lists:delete(Node, Nodes)}};
+        false ->
+            throw({node_already_deleted, Node})
+    end.
+
+%% gen_fsm callbacks
 %% =============================================================================
 init([]) ->
-    {ok, #state{}}.
-
-handle_cast({send_simulation, Simulation}, State) ->
-    {noreply, State#state{simulation=Simulation}};
-
-handle_cast(tick, State=#state{}) ->
-    gen_server:cast(?NETSIM_CLOCK, tick),
-    tick(State);
-
-handle_cast(_Msg, State) ->
-    {noreply, State}.
-
-handle_call(_Msg, _From, State) ->
-    {reply, ok, State}.
-
-handle_info(_Msg, State) ->
-    {noreply, State}.
-
-terminate(normal, State) ->
+    {ok, wait_for_data, #state{}}.
+handle_sync_event(event, from, statename, State) ->
+    {stop, undefined, State}.
+handle_event(event, statename, State) ->
+    {stop, undefined, State}.
+handle_info(info, statename, State) ->
+    {stop, undefined, State}.
+terminate(normal, _, State) ->
     State.
-
-code_change(_, _, State) ->
+code_change(_, _, _, State) ->
     {ok, State}.
-
-%% Helpers
-%% =============================================================================
-
-%% @doc Synchronously sends simple tick to all nodes
--spec send_tick(#state{}) -> {noreply, #state{}}.
-send_tick(State=#state{watch=Watch}) ->
-    {noreply, State#state{watch=Watch+1}}.
