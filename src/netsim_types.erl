@@ -2,9 +2,10 @@
 
 -type latency() :: pos_integer().
 -type nodeid() :: pos_integer().
--type price() :: pos_integer().
--type metric_attribute() :: {latency, latency()} | {price, integer()} |
-                            {bandwidth, integer()}.
+-type price() :: integer().
+-type bandwidth() :: pos_integer().
+-type metric_attribute() :: {latency, latency()} | {price, price()} |
+                            {bandwidth, bandwidth()}.
 -type metrics() :: [metric_attribute()].
 -type channel() :: {Id :: reference(),  {From :: nodeid(), To :: nodeid(),
                     Metrics :: metrics()}}.
