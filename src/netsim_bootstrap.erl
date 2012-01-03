@@ -11,9 +11,10 @@ init() ->
         "./priv/simulation.txt").
 
 %% @doc Reads data from files and creates new nodes setup.
+%% @todo Rename Channel to Link.
 -spec init(list(), list(), list()) -> no_return().
 init(NodesFiles, ChannelsFile, SimulationFile) ->
-    % NodeList :: {NodeId, Cost}
+    % NodeList :: {NodeId, Price}
     {ok, NodesList} = file:consult(NodesFiles),
     % ChannelsList :: [{From, To, Latency, Bandwith}]
     {ok, ChannelsList} = file:consult(ChannelsFile),
@@ -24,13 +25,13 @@ init(NodesFiles, ChannelsFile, SimulationFile) ->
     netsim_clock_serv:send_simulation_file(SimulationFile),
 
     % Start nodes without channels:
-    [netsim_sup:add_node(Id, Cost) || {Id, Cost} <- NodesList],
+    [netsim_sup:add_node(Id, Price) || {Id, Price} <- NodesList],
 
     % Init channels:
     lists:foreach(
-        fun ({NodeId0, NodeId1, _, _}=Channel) ->
-            ok = netsim_serv:add_channel(NodeId0, Channel),
-            ok = netsim_serv:add_channel(NodeId1, Channel)
+        fun ({NodeId0, NodeId1, _, _}=Link) ->
+            ok = netsim_serv:add_link(NodeId0, Link),
+            ok = netsim_serv:add_link(NodeId1, Link)
         end,
         ChannelsList
     ).

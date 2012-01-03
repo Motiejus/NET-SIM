@@ -13,14 +13,14 @@
         queues :: [netsim_types:msg_queue()],
         nodeid :: netsim_types:nodeid(),
         table :: netsim_types:route_table(),
-        cost :: netsim_types:cost(),
+        price :: netsim_types:price(),
         tick = 0 :: pos_integer() % current tick
     }).
 
 %% =============================================================================
 
-start_link(Nodeid, Cost) ->
-    gen_server:start_link({local, Nodeid}, ?MODULE, [Nodeid, Cost], []).
+start_link(Nodeid, Price) ->
+    gen_server:start_link({local, Nodeid}, ?MODULE, [Nodeid, Price], []).
 
 -spec add_link(netsim_types:nodeid(), netsim_types:link()) -> ok.
 add_link(NodeId, Link) ->
@@ -36,23 +36,25 @@ send_event(Event=#event{nodeid=NodeId}) ->
 tick(NodeId, TickNr) ->
     gen_server:call(NodeId, {tick, TickNr}).
 
-multicast() ->
-    ok.
-
 state(NodeId) ->
     gen_server:call(NodeId, state).
 
 %% =============================================================================
 
-init([Nodeid, Cost]) ->
-    {ok, #state{nodeid=Nodeid, cost=Cost, queues=[], table=[]}}.
+init([Nodeid, Price]) ->
+    {ok, #state{nodeid=Nodeid, price=Price, queues=[], table=[]}}.
+
+handle_cast(tick, #state{nodeid=NodeId, tick=Tick}=State) ->
+    % @todo 1) process queues; 2) send back tick to clock
+
+    {noreply, State};
 
 handle_cast(Msg, State) ->
     {noreply, State}.
 
 %% @doc Inserts link (into queue).
 handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
-        #'state'{queues=Queues, nodeid=NodeId}=State) ->
+        #state{queues=Queues, nodeid=NodeId}=State) ->
 
     % From should be current process NodeId:
     {From, To} = 
@@ -81,19 +83,56 @@ handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
             Queues
         ) ++ [{Link, []}],
 
-    {reply, ok, State#'state'{queues=Queues1}};
+    {reply, ok, State#state{queues=Queues1}};
 
-handle_call({event, Ev=#event{action=add_resource}}, _From, State) ->
-    ok;
+%% @doc Add new resource.
+handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
+        #state{table=RouteTable0, nodeid=NodeId, price=Price}=State) ->
+    % Check if given resource does exist:
+    case ([RTEntry || {{R, _, _}, _}=RTEntry <- RouteTable0]) of
+        [] ->
+            ok;
+        _ ->
+            throw({resource_already_exists, R})
+    end,
 
-handle_call({event, Ev=#event{action=del_resource}}, _From, State) ->
-    ok;
+    % Add new resource:
+    Cost = {0, Price},
+    RouteTable1 = [{{R, [NodeId], Cost}, []} | RouteTable0],
 
-%% @doc Updates process' tick.
-handle_call({tick, Tick}, _From, #'state'{tick=T}=State) ->
+    % Propogate the new resource to neighbours:
+    % @todo
+
+    {reply, ok, #state{table=RouteTable1}}; 
+
+%% @doc Delete resource.
+handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
+        #state{table=RouteTable0}=State) ->
+    % Find routes that are affected by del_resource id and have to be deleted:
+    {RoutsToBeDeleted, RouteTable1} = 
+        lists:foldl(
+            fun
+                % Current route resource = resource to be deleted:
+                ({{Res, _, _}=CR, Rs}, {DeleteAcc, TableAcc}) when Res == R ->
+                    {[[CR|Rs]|DeleteAcc], TableAcc};
+                ({CR, Rs}=Entry, {DeleteAcc, TableAcc}) ->
+                    {DeleteAcc, [Entry|TableAcc]}
+            end,
+            {[], []},
+            RouteTable0
+        ),
+
+    % @todo send msg to neighbours about deletion
+    send_msg,
+            
+    {reply, ok, State#state{table=RouteTable1}};
+
+%% @doc Updates process tick.
+handle_call({tick, Tick}, _From, #state{nodeid=NodeId, tick=T}=State) ->
     case (T+1) of
         Tick ->
-            {reply, ok, State#'state'{tick=Tick}};
+            gen_server:cast(self(), tick),
+            {reply, ok, State#state{tick=Tick}};
         _ ->
             throw({inconsistent_tick, T, Tick})
     end;
@@ -120,8 +159,8 @@ code_change(_, _, State) ->
 %% =============================================================================
 
 %% @doc Puts message to all queues.
--spec send_msg(term(), #'state'{}) -> #'state'{}.
-send_msg(Msg, #'state'{queues=Queues}=State) ->
+-spec send_msg(term(), #state{}) -> #state{}.
+send_msg(Msg, #state{queues=Queues}=State) ->
     % Insert new queue item to each queue:
     Queues1 = 
         lists:map(
@@ -137,7 +176,10 @@ send_msg(Msg, #'state'{queues=Queues}=State) ->
             Queues
         ),
 
-    State#'state'{queues=Queues1}.
+    State#state{queues=Queues1}.
+
+multicast() ->
+    ok.
 
 %% @doc Returns term() size in bits.
 sizeof(Term) ->
@@ -149,7 +191,6 @@ sizeof(Term) ->
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% @todo
 sizeof_test() ->
     ?assertEqual(120, sizeof({a, b, c})).
 
@@ -158,7 +199,7 @@ send_msg_test() ->
     Link = {a, b, [{latency, 20}, {bandwidth, 64}]},
     Queues = [{Link, []}],
 
-    #'state'{queues=Queues1} = send_msg(Msg, #'state'{queues=Queues}),
+    #state{queues=Queues1} = send_msg(Msg, #state{queues=Queues}),
 
     ?assertMatch(
         [{{a, b, [_, _]}, [{Msg, 21}]}],
@@ -168,10 +209,29 @@ send_msg_test() ->
 add_link_test() ->
     start_link(a, 10),
     add_link(a, {b, a, [metrics0]}),
+    add_link(a, {a, b, [metrics1]}),
 
     ?assertEqual(
-        [{{a, b, [metrics0]}, []}],
-        (state(a))#'state'.queues
+        [{{a, b, [metrics1]}, []}],
+        (state(a))#state.queues
     ).
+
+add_resource_test() ->
+    % Create 'a' and 'b' nodes:
+    start_link(a, 10),
+    start_link(b, 20),
+    % Create link between them:
+    add_link(a, {b, a, [{latency, 20}, {bandwith, 64}]}),
+    add_link(b, {b, a, [{latency, 20}, {bandwith, 64}]}),
+    % Add resource '1' to 'a' node:
+    ok = send_event(#event{nodeid=a, resource=1, action=add_resource}),
+
+    ?assertEqual(
+        [{{1, [a], {0, 10}}, []}],
+        (state(a))#state.table
+    ).
+
+del_resource_test() ->
+    ?assert(false).
 
 -endif.

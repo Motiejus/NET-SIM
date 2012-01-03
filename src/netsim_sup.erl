@@ -25,10 +25,10 @@ list_nodes() ->
     [Id || {Id, _, _, _} <- supervisor:which_children(?MODULE)].
 
 -spec add_node(netsim_types:nodeid(), netsim_types:cost()) -> ok.
-add_node(NodeId, Cost) ->
+add_node(NodeId, Price) ->
     {ok, _} =
         supervisor:start_child(?MODULE, ?CHILD(NodeId, netsim_serv, worker,
-            [NodeId, Cost])).
+            [NodeId, Price])).
 
 %% =============================================================================
 %% Supervisor callbacks
