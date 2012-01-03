@@ -15,7 +15,10 @@
         table :: netsim_types:route_table(),
         price :: netsim_types:price(),
         tick = 0 :: pos_integer(), % current tick
-        pending_responses = [] :: [netsim_types:nodeid()]
+        pending_responses = [] :: [netsim_types:nodeid()],
+
+        % Whom to reply when tick completes
+        report_when_finished = undefined :: netsim_types:nodeid()
     }).
 
 %% =============================================================================
@@ -33,8 +36,11 @@ send_event(Event=#event{nodeid=NodeId}) ->
     gen_server:call(NodeId, {event, Event}).
 
 %% @doc Sends route (add/del) event.
-send_route(NodeId, #route{}=Route) ->
-    gen_server:cast(NodeId, {route, Route}).
+%%
+%% After locally work is done, cast {update_complete, NodeId} to ReplySuccessTo
+%%
+send_route(NodeId, #route{}=Route, ReplySuccessTo) ->
+    gen_server:cast(NodeId, {route, Route, ReplySuccessTo}).
 
 %% @doc Sends tick to a node.
 -spec tick(netsim_types:nodeid(), pos_integer()) -> ok.
@@ -49,13 +55,44 @@ state(NodeId) ->
 init([Nodeid, Price]) ->
     {ok, #state{nodeid=Nodeid, price=Price, queues=[], table=[]}}.
 
-handle_cast(tick, #state{nodeid=NodeId, tick=Tick}=State) ->
-    % @todo 1) process queues; 2) send back tick to clock
+handle_cast({update_complete, NodeId},
+    State=#state{pending_responses=Resp, report_when_finished=To}) ->
+    case Resp of
+        NodeId -> % Finish getting the replies, we can send clock "done"
+            gen_server:reply(To, ok);
+        _ when is_list(Resp) ->
+            State#state{
+                pending_responses=lists:delete(NodeId, Resp),
+                report_when_finished=undefined
+            }
+    end;
 
+handle_cast({route, #route{action=change}, ReportCompleteTo},
+    #state{table=RouteTable0, nodeid=NodeId}=State) ->
+
+    % Change current route
+    % Propagate current route
+
+    % @todo
+
+    gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
     {noreply, State};
 
 handle_cast(Msg, State) ->
     {noreply, State}.
+
+handle_call(tick, From, #state{nodeid=NodeId, tick=Tick, queues=Queues}=State) ->
+    % @todo 1) process queues; 2) send back tick to clock
+
+    % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
+    % link() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics()}.
+
+    S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == Tick],
+    % S :: [{To :: nodeid(), Route :: #route{}}]
+
+    Pending = [To || {To, _Route} <- S],
+    [send_route(To, Route, self()) || {To, Route} <- S],
+    {noreply, State#state{pending_responses=Pending, report_when_finished=From}};
 
 %% @doc Inserts link (into queue).
 handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
@@ -89,16 +126,6 @@ handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
         ) ++ [{Link, []}],
 
     {reply, ok, State#state{queues=Queues1}};
-
-handle_call({route, #route{action=change}}, _From,
-        #state{table=RouteTable0}=State) ->
-    % Change current route
-
-    % Propagate current route
-
-    % @todo
-
-    ok;
 
 %% @doc Add new resource.
 handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
@@ -155,6 +182,9 @@ handle_call({tick, Tick}, _From, #state{nodeid=NodeId, tick=T}=State) ->
         _ ->
             throw({inconsistent_tick, T, Tick})
     end;
+
+handle_call({event, Event}, _From, State) ->
+    ok;
 
 handle_call(state, _From, State) ->
     {reply, State, State};
