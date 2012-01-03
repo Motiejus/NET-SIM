@@ -4,7 +4,7 @@
 -type nodeid() :: atom().
 -type price() :: integer().
 -type bandwidth() :: pos_integer().
--type resource() :: pos_integer().
+-type resource() :: {nodeid(), pos_integer()}.
 -type metric_attribute() :: {latency, latency()} | {bandwidth, bandwidth()}.
 -type metrics() :: [metric_attribute()].
 -type link() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics()}.

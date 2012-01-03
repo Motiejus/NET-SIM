@@ -14,7 +14,8 @@
         nodeid :: netsim_types:nodeid(),
         table :: netsim_types:route_table(),
         price :: netsim_types:price(),
-        tick = 0 :: pos_integer() % current tick
+        tick = 0 :: pos_integer(), % current tick
+        pending_responses = [] :: [netsim_types:nodeid()]
     }).
 
 %% =============================================================================
@@ -33,7 +34,7 @@ send_event(Event=#event{nodeid=NodeId}) ->
 
 %% @doc Sends route (add/del) event.
 send_route(NodeId, #route{}=Route) ->
-    gen_server:call(NodeId, {route, Route}).
+    gen_server:cast(NodeId, {route, Route}).
 
 %% @doc Sends tick to a node.
 -spec tick(netsim_types:nodeid(), pos_integer()) -> ok.
@@ -108,7 +109,7 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
             throw({resource_already_exists, R})
     end,
 
-    % Add new resource:
+    % Add new route into table:
     Cost = {0, Price},
     Route = {{R, [NodeId], Cost}, []},
     RouteTable1 = [Route|RouteTable0],
@@ -171,7 +172,6 @@ terminate(normal, State) ->
 
 code_change(_, _, State) ->
     {ok, State}.
-
 
 %% =============================================================================
 
