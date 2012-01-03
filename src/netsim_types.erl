@@ -6,7 +6,8 @@
 -type metric_attribute() :: {latency, latency()} | {price, integer()} |
                             {bandwidth, integer()}.
 -type metrics() :: [metric_attribute()].
--type channel() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics()}.
+-type channel() :: {Id :: reference(),  {From :: nodeid(), To :: nodeid(),
+                    Metrics :: metrics()}}.
 -type resource() :: pos_integer().
 -type path() :: [channel()].
 -type cost() :: {latency(), price()}.

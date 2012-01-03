@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/2]).
+-export([start_link/2, add_channel/2]).
 
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
@@ -15,8 +15,16 @@
         channels = [] :: netsim_types:channels()
     }).
 
+%% =============================================================================
+
 start_link(Nodeid, Cost) ->
     gen_server:start_link({local, Nodeid}, ?MODULE, [Nodeid, Cost], []).
+
+-spec add_channel(netsim_types:nodeid(), netsim_types:channel()) -> ok.
+add_channel(NodeId, Channel) ->
+    gen_server:call(NodeId, {add_channel, Channel}).
+
+%% =============================================================================
 
 init([Nodeid, Cost]) ->
     io:format("~p~n", [Nodeid]),
@@ -24,6 +32,22 @@ init([Nodeid, Cost]) ->
 
 handle_cast(Msg, State) ->
     {noreply, State}.
+
+handle_call({add_channel, {Id, Info}=Channel}, _From,
+        #'state'{channels=Channels}=State) ->
+
+    Channels1 = 
+        case proplists:get_value(Id, Channels, '$undefined') of 
+            '$undefined' ->
+                % @todo
+                do_smthng;
+            Info ->
+                ok; % channel already exists
+            NewRouteInfo ->
+                throw(not_unique_channel_id)
+        end,
+
+    {ok, State#'state'{channels=Channels}};
 
 handle_call(Msg, _From, State) ->
     {reply, ok, State}.
