@@ -236,13 +236,57 @@ change_route(
         #state{table=RouteTable0, nodeid=Nodeid}=State) ->
 
     ResourceRoutes = proplists:get_value(Res, RouteTable0),
-    [OptimalRoute|_] = ResourceRoutes,
+    [CurrentOptimalRoute|_] = ResourceRoutes,
+
+    % check if latency is less than max_latency.
+    % check if there is no loop.
+    % insert_route
 
 
     ok.
 
-calc_cost() ->
+%% @doc Inserts a new route into route table list.
+%% Insertion algorithm:
+%% * Find a route, that was propagated by the same node (i.e. last element is
+%%   equal to the second element from the right side of a route).
+%% * If the price is smaller (and latency is less than max_latency), replace
+%%   it.
+insert_route({_, Path, {_, Price}}=Route, Routes) ->
     ok.
+
+%% @doc Returns route that was propagated by the same node as given one, i.e.
+%% route's second from the right element is equal to last element of the given.
+-spec find_route(netsim_types:route(), [netsim_types:route()]) ->
+    netsim_types:route() | undefined.
+find_route({_, Path, _} = Route, Routes) ->
+    LastElement = hd(lists:reverse(Path)),
+
+    Res = lists:filter(
+        fun ({_, Path1, _}) ->
+            if
+                % Route that consists of current nodeid:
+                length(Path1) < 2 ->
+                    false;
+                % Possible route:
+                true ->
+                    % Second element from the right:
+                    [_|[E|_]] = lists:reverse(Path1),
+                    case E of
+                        LastElement ->
+                            true;
+                        _ ->
+                            false
+                    end
+            end
+        end,
+        Routes
+    ),
+
+    case Res of
+        [] -> undefined;
+        [R] -> R;
+        _ -> throw(inconsistent_route_table)
+    end.
 
 %% =============================================================================
 
@@ -310,6 +354,19 @@ del_resource_test() ->
     ?assertMatch(
         [{{a, b, _}, [_, _]}],
         (state(a))#state.queues
+    ).
+
+find_route_test() ->
+    Route = {1, [a, b], []},
+    Routes = [{1, [c], []}, {1, [a, b, c], []}, {1, [d, e, f, c], []}],
+
+    ?assertEqual(
+        {1, [a, b, c], []},
+        find_route(Route, Routes)
+    ),
+    ?assertEqual(
+        undefined,
+        find_route(Route, [])
     ).
 
 -endif.
