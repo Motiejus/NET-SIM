@@ -30,7 +30,7 @@ add_link(NodeId, Link) ->
 
 %% @doc Sends event to a node.
 -spec send_event(#'event'{}) -> ok.
-send_event(Event=#event{nodeid=NodeId}) ->
+send_event(Event=#event{resource={NodeId, _}}) ->
     gen_server:call(NodeId, {event, Event}).
 
 %% @doc Sends route (add/del) event.
@@ -92,7 +92,6 @@ handle_call({tick, Tick}, _, #state{queues=Queues, tick=Tick1}=S) ->
 
     S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == 0],
     % S :: [{To :: nodeid(), Route :: #route{}}]
-
 
     Pending = [To || {To, _Route} <- S],
     [send_route(To, Route, self()) || {To, Route} <- S],
@@ -379,7 +378,7 @@ add_resource_test() ->
     add_link(b, {b, a, [{latency, 20}, {bandwidth, 64}]}),
 
     % Add resource '1' to 'a' node:
-    ok = send_event(#event{nodeid=a, resource={a, 1}, action=add_resource}),
+    ok = send_event(#event{resource={a, 1}, action=add_resource}),
 
     ?assertEqual(
         [{{a, 1}, [{[a], {0, 0}}]}],
@@ -395,7 +394,7 @@ del_resource_test() ->
     % Dirty hack: reuse add_resource_test() setup.
 
     % Del resource '1' from 'a' node:
-    ok = send_event(#event{nodeid=a, resource={a, 1}, action=del_resource}),
+    ok = send_event(#event{resource={a, 1}, action=del_resource}),
 
     ?assertEqual(
         [],
