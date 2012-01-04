@@ -1,5 +1,6 @@
 -module(netsim_clock_serv).
 -include("include/netsim.hrl").
+-include("include/log_utils.hrl").
 
 -behaviour(gen_fsm).
 
@@ -7,7 +8,7 @@
 -export([start_link/0, start_simulation/0, node_work_complete/2, send_data_file/1]).
 
 %% gen_fsm callbacks
--export([init/1, code_change/4, terminate/3,
+-export([init/1, code_change/4, terminate/3, finalize/2,
         handle_info/3, handle_sync_event/4, handle_event/3]).
 
 %% gen_fsm state callbacks
@@ -39,62 +40,63 @@ start_link() ->
 node_work_complete(NodeId, WorkToDo) ->
     gen_fsm:send_event(?NETSIM_CLOCK, {node_ack, NodeId, WorkToDo}).
 
-
 %% Ticking implementation
 %% =============================================================================
--spec wait_for_data([#event{}], #state{}) -> {next_state, send_tick, #state{}}.
+-spec wait_for_data([#event{}], #state{}) -> {next_state,send_tick,#state{},0}.
 wait_for_data({data_file, Data}, State=#state{}) ->
-    gen_fsm:send_event(?NETSIM_CLOCK, tick),
-    {next_state, send_tick, State#state{data=Data}}.
+    {next_state, send_tick, State#state{data=Data}, 0}.
 
 %% @doc Have a message to send. Flush messages
 %%
 %% That are supposed to be flushed during this tick
--spec send_tick(tick, #state{}) -> {next_state, send_tick, #state{}}.
-send_tick(tick, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
+-spec send_tick(tick, #state{}) -> {next_state, send_tick, #state{}, 0}.
+send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
     netsim_serv:send_event(E),
-    {next_state, send_tick, S#state{data=Evs}};
+    {next_state, send_tick, S#state{data=Evs}, 0};
 
 %% @doc Just a tick for every node
-send_tick(tick, State=#state{time=Time}) ->
-    % enqueue another tick for future
-    gen_fsm:send_event(self(), tick),
-
-    % Enqueue a tick to all nodes
+send_tick(timeout, State=#state{time=Time}) ->
     Nodes = netsim_sup:list_nodes(),
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack,
         State#state{time=Time+1, nodes=Nodes, work_left=false}}.
 
 node_ack({node_ack, N, false}, State=#state{nodes=[N], work_left=false}) ->
-    {next_state, send_tick, State#state{nodes=[]}};
+    {next_state, finalize, State#state{nodes=[]}};
 
 node_ack({node_ack, N, _}, State=#state{nodes=[N]}) ->
-    {next_state, send_tick, State#state{nodes=[]}};
+    {next_state, send_tick, State#state{nodes=[]}, 0};
 
 node_ack({node_ack, N, W1}, State=#state{nodes=Nodes, work_left=W2}) ->
     case lists:member(N, Nodes) of
         true ->
             {next_state, node_ack, State#state{
-                    nodes=lists:delete(N, Nodes),
-                    work_left = W1 or W2
+                    work_left = W1 or W2,
+                    nodes=lists:delete(N, Nodes)
                 }};
         false ->
             throw({node_already_deleted, N})
     end.
 
+finalize(timeout, State) ->
+    {next_state, finalize, State};
+finalize(stop, _State) ->
+    {stop, stopped}.
+
 %% gen_fsm callbacks
 %% =============================================================================
 init([]) ->
     {ok, wait_for_data, #state{}}.
-handle_sync_event(event, from, statename, State) ->
-    {stop, undefined, State}.
+
+%% for debugging
+handle_sync_event(give_me_state_name, _From, StateName, StateData) ->
+    {reply, StateName, StateName, StateData, 0}.
 handle_event(event, statename, State) ->
     {stop, undefined, State}.
 handle_info(info, statename, State) ->
     {stop, undefined, State}.
-terminate(normal, _, State) ->
-    State.
+terminate(normal, _, _) ->
+    ok.
 code_change(_, _, _, State) ->
     {ok, State}.
 
@@ -111,11 +113,18 @@ clock_serv_test_() ->
         ]
     }.
 
+sync_state(State) ->
+    case gen_fsm:sync_send_all_state_event(?NETSIM_CLOCK, give_me_state_name) of
+        State -> ok;
+        _  -> timer:sleep(10), sync_state(State)
+    end.
+
 single_tick() ->
     % Copied from bootstrap
-    %{ok, SimulationFile} = file:consult(filename:join([
-    %            code:priv_dir(netsim), "simulation.txt"])),
-    %netsim_clock_serv:send_data_file(SimulationFile),
+    {ok, SimulationFile} = file:consult(filename:join([
+                code:priv_dir(netsim), "simulation.txt"])),
+    netsim_clock_serv:send_data_file(SimulationFile),
+    sync_state(finalize),
     ok.
 
 setup() ->
@@ -126,22 +135,24 @@ setup() ->
     meck:expect(netsim_serv, send_event, fun(_) -> ok end),
 
     T = ets:new(eunit_state, [set, public]),
-    ets:insert(T, {n1, false}),
+    ets:insert(T, {n1, true}),
 
     meck:expect(netsim_serv, tick,
-        fun(Node, Time) ->
-                [{n1, N1}] = ets:lookup_element(T, n1),
-                ets:insert(T, {n1, true}),
-                netsim_clock_serv:node_work_complete(n1, N1),
-                netsim_clock_serv:node_work_complete(n2, true)
+        fun (n1, _Time) ->
+                Complete = ets:lookup_element(T, n1, 2),
+                ets:insert(T, {n1, false}),
+
+                netsim_clock_serv:node_work_complete(n1, Complete);
+            (n2, _Time) ->
+                netsim_clock_serv:node_work_complete(n2, false)
         end).
 
 cleanup(_) ->
     meck:unload([netsim_serv, netsim_sup]),
 
-    error_logger:tty(false),
+    ?mute_log(),
     application:stop(netsim),
     application:stop(sasl),
-    error_logger:tty(true).
+    ?unmute_log().
 
 -endif.
