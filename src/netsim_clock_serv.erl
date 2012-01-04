@@ -5,7 +5,7 @@
 -behaviour(gen_fsm).
 
 %% API callbacks
--export([start_link/0, start_simulation/0, node_work_complete/2, send_data_file/1]).
+-export([start_link/0, node_work_complete/2, send_data_file/1]).
 
 %% gen_fsm callbacks
 -export([init/1, code_change/4, terminate/3, finalize/2,
@@ -26,9 +26,6 @@
 %% =============================================================================
 send_data_file(Simulation) ->
     gen_fsm:send_event(?NETSIM_CLOCK, {data_file, Simulation}).
-
-start_simulation() ->
-    ok.
 
 start_link() ->
     gen_fsm:start_link({local, ?NETSIM_CLOCK}, ?MODULE, [], []).
