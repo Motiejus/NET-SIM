@@ -205,13 +205,12 @@ code_change(_, _, State) ->
 
 %% @doc Puts route message to all outgoing queues.
 %% Updates latency and price of each route before inserting in queue.
-%% Also adds node to route path.
 -spec send_route_msg(#route{}, #state{}) -> #state{}.
 send_route_msg(#route{action=Action, route=Route}=Msg,
         #state{nodeid=NodeId, price=Price, queues=Queues}=State) ->
     % Insert new queue item to each queue.
     Queues1 = lists:map(
-        fun ({{_From, _To, Metrics}=L, Queue}) ->
+        fun ({{_From, _To, Metrics}=Link, Queue}) ->
             Latency = proplists:get_value(latency, Metrics),
             Bandwidth = proplists:get_value(bandwidth, Metrics),
 
@@ -220,7 +219,7 @@ send_route_msg(#route{action=Action, route=Route}=Msg,
                 if
                     Action == change ->
                         {Path, {L, P}} = Route,
-                        {Path ++ [NodeId], {L+Latency, P+Price}};
+                        {Path, {L+Latency, P+Price}};
                     true ->
                         Route
                 end,
@@ -228,7 +227,7 @@ send_route_msg(#route{action=Action, route=Route}=Msg,
             TimeToSend = Latency + (sizeof(Msg) div Bandwidth),
             Item =  {Msg#route{route=Route1}, TimeToSend},
 
-            {L, Queue ++ [Item]}
+            {Link, Queue ++ [Item]}
         end,
         Queues
     ),
@@ -345,6 +344,23 @@ send_route_msg_test() ->
     ?assertMatch(
         [{{a, b, [_, _]}, [{Msg, 28}]}],
         Queues1
+    ),
+
+    Msg1 = #route{
+        action = change,
+        resource = {a, 1},
+        route = {[b, c, d], {10, 9}},
+        nodeid = d
+    },
+    State1 = #state{
+        queues = Queues,
+        price = 33,
+        nodeid = d
+    },
+    #state{queues=Queues2} = send_route_msg(Msg1, State1),
+    ?assertMatch(
+        [{{a, b, [_, _]}, [{#route{route={[b, c, d], {30, 42}}}, _}]}],
+        Queues2
     ).
 
 add_link_test() ->
