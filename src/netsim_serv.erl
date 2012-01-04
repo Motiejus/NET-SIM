@@ -138,8 +138,7 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
 
 %% @doc Add new resource.
 handle_call({event, #event{action=add_resource, resource=R}}, _From,
-        #state{table=RouteTable0, nodeid=NodeId, tick=Tick,
-                queues=Queues}=State) ->
+        #state{table=RouteTable0, nodeid=NodeId, tick=Tick}=State) ->
     % Check if given resource does exist:
     case proplists:get_value(R, RouteTable0, '$undefined') of
         '$undefined' ->
@@ -161,8 +160,7 @@ handle_call({event, #event{action=add_resource, resource=R}}, _From,
 
 %% @doc Delete resource.
 handle_call({event, #event{action=del_resource, resource=R}}, _From,
-        #state{table=RouteTable0, tick=Tick, nodeid=NodeId,
-            queues=Queues}=State) ->
+        #state{table=RouteTable0, tick=Tick, nodeid=NodeId}=State) ->
     % Find route that is affected by del_resource resource id and
     % have to be deleted:
     Route =
@@ -206,7 +204,7 @@ code_change(_, _, State) ->
 %% Updates latency and price of each route before inserting in queue.
 -spec send_route_msg(#route{}, #state{}) -> #state{}.
 send_route_msg(#route{action=Action, route=Route}=Msg,
-        #state{nodeid=NodeId, price=Price, queues=Queues}=State) ->
+        #state{price=Price, queues=Queues}=State) ->
     % Insert new queue item to each queue.
     Queues1 = lists:map(
         fun ({{_From, _To, Metrics}=Link, Queue}) ->
