@@ -222,15 +222,6 @@ sizeof(Term) ->
     erlang:bit_size(term_to_binary(Term)).
 
 %% @doc Changes route table.
-%% Change steps:
-%% 1) Check if NewRoute->nodeid is in CurrentRoute->path:
-%% 1.1) True: Check if there is no loop in NewRoute->route:
-%% 1.1.1) True: delete CurrentRoute, take the best route from History, send msg
-%%        change to neighbours;
-%% 1.1.2) False: update CurrentRoute, send change msg to neighbours;
-%% 1.2) False: update route History and reelect a new best route, if new best
-%% route is found, @todo loop send msg to neighbours about it;
-%% @todo check if routetable0 res exists outside.
 change_route(
         #route{nodeid=NeighbourNodeId, route=NewRoute, resource=Res},
         #state{table=RouteTable0, nodeid=Nodeid}=State) ->
@@ -239,10 +230,20 @@ change_route(
 
     % get R = find_route(),
     % delete R from Routes
-    % if without loop NewRoute, insert it
-    % update_route
+    % if without loop NewRoute and max_latency >, insert it
+    % update_optimal
+    % send_msg
 
     ok.
+
+%% @doc Sorts routes in a way that the best route is head of the list.
+update_optimal(Routes) ->
+    lists:sort(
+        fun ({_, {_, Price0}}, {_, {_, Price1}}) ->
+            Price0 =< Price1
+        end,
+        Routes
+    ).
 
 %% @doc Returns route that was propagated by the same node as given one, i.e.
 %% route's second from the right element is equal to last element of the given.
@@ -368,5 +369,12 @@ find_route_test() ->
 has_loop_test() ->
     ?assert(has_loop(a, {[c, a, d], []})),
     ?assertNot(has_loop(a, {[c, d], []})).
+
+update_optimal_test() ->
+    Routes = [{r_1, {1, 30}}, {r_2, {1, 20}}, {r_3, {1, 20}}],
+    ?assertMatch(
+        [{r_2, _}, {r_3, _}, _],
+        update_optimal(Routes)
+    ).
 
 -endif.
