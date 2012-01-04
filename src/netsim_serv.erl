@@ -84,10 +84,10 @@ handle_cast(stop, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_call({tick, Tick}, _, #state{queues=Queues, tick=T}=S) ->
-    case (T+1) of
+handle_call({tick, Tick}, _, #state{queues=Queues, tick=Tick1}=S) ->
+    case (Tick1+1) of
         Tick -> ok;
-        _ -> throw({inconsistent_tick, T, Tick})
+        _ -> throw({inconsistent_tick, Tick1, Tick})
     end,
 
     S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == 0],
@@ -99,7 +99,7 @@ handle_call({tick, Tick}, _, #state{queues=Queues, tick=T}=S) ->
 
     % Update every queue head: decrease Tick
     % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
-    NewQ = [ { L, [{M,T-1}||{M,T}<-Arr] } || {L, Arr} <- Queues, T =/= 0],
+    NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
     {noreply, S#state{pending_responses=Pending, queues=NewQ}};
 
