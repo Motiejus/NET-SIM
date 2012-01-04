@@ -1,5 +1,6 @@
 -module(netsim_serv).
 -include("include/netsim.hrl").
+-include("include/log_utils.hrl").
 
 -include_lib("eunit/include/eunit.hrl").
 -behaviour(gen_server).
@@ -326,6 +327,39 @@ has_loop(NodeId, {Path, _}=_Route) ->
 -ifdef(TEST).
 
 -include_lib("eunit/include/eunit.hrl").
+
+%send_route_sync_test_() ->
+%    {foreach,
+%        fun meck_setup/0,
+%        fun meck_cleanup/1,
+%        [
+%            {"Send new route synchronously", fun meck_send_route_sync/0}
+%        ]
+%    }.
+%
+%meck_setup() ->
+%    application:start(sasl),
+%    application:start(netsim),
+%    meck:new(netsim_serv, [passthrough]),
+%    meck:expect(netsim_serv, handle_cast, fun
+%            ({route, #route{action=change}, ReportCompleteTo},
+%                State=#state{nodeid=NodeId}) ->
+%                gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
+%                {noreply, State};
+%            (What, State) ->
+%                meck:passthrough([What, State])
+%        end),
+%    ok.
+%
+%meck_cleanup(_) ->
+%    meck:unload(netsim_serv),
+%    ?mute_log(),
+%    application:stop(netsim),
+%    application:stop(sasl),
+%    ?unmute_log().
+%
+%meck_send_route_sync() ->
+%    ok.
 
 sizeof_test() ->
     ?assertEqual(520, sizeof(#route{action=del})).
