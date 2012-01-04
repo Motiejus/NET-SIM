@@ -57,9 +57,10 @@ init([Nodeid, Price, MaxLatency]) ->
 
 handle_cast({update_complete, NodeId},
     State=#state{pending_responses=Resp}) ->
+    EmptyQueue = lists:all(fun(Q) -> length(Q) == 0 end, State#state.queues),
     if
         Resp == [NodeId] -> % Last reply, we can send clock "done"
-            netsim_clock_serv:node_work_complete(NodeId);
+            netsim_clock_serv:node_work_complete(NodeId, EmptyQueue);
         true -> ok
     end,
     State#state{pending_responses=lists:delete(NodeId, Resp)};
