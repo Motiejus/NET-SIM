@@ -235,22 +235,43 @@ send_route_msg(#route{action=Action, route=Route}=Msg,
 sizeof(Term) ->
     erlang:bit_size(term_to_binary(Term)).
 
-%% @doc Changes route table.
-change_route(
-        #route{nodeid=_NeighbourNodeId, route=_NewRoute, resource=Res},
-        #state{table=RouteTable0, nodeid=_Nodeid}=_State) ->
-    ResourceRoutes = proplists:get_value(Res, RouteTable0),
-    [_CurrentOptimalRoute|_] = ResourceRoutes,
-
-    % get R = find_route(),
-    % delete R from Routes
-    % if without loop NewRoute and max_latency >, insert it (add node id to
-    %                          route and price)
-    % update_optimal
-    % update state
-    % send_route_msg
+%% @doc Deletes route from table.
+-spec delete_route(#route{}, #state{}) -> #state{}.
+delete_route(
+        #route{resource=Res, nodeid=NodeId},
+        #state{table=RouteTable0}=State) ->
+    % Get routes for resource:
+    Routes1 = proplists:get_value(Res, RouteTable0),
+    % @todo
 
     ok.
+
+%% @doc Changes route table when route change event arrives.
+-spec change_route(#route{}, #state{}) -> #state{}.
+change_route(
+        #route{route=NewRoute, resource=Res},
+        #state{table=RouteTable0, nodeid=NodeId, max_latency=MaxL}=State) ->
+    Routes0 = proplists:get_value(Res, RouteTable0, []),
+    % Get route (ExistingRoute) that will be affected by NewRoute:
+    ExistingRoute = find_route(NewRoute, Routes0),
+    % Delete ExistingRoute from routes table:
+    Routes1 = lists:delete(ExistingRoute, Routes0),
+    % Check, if new route max_latency =< global max_latency and new route
+    % doesn't have a loop:
+    {_, {Latency, _}} = NewRoute,
+    Routes2 = 
+        case ((not has_loop(NodeId, NewRoute)) and (Latency =< MaxL)) of
+            true ->
+                % Find a new optimal route:
+                update_optimal([NewRoute | Routes1]);
+            false ->
+                Routes1
+        end,
+
+    RouteTable1 = [{Res, Routes2} | proplists:delete(Res, RouteTable0)],
+    State1 = State#state{table=RouteTable1},
+    % Send route update messages to neighbours:
+    State2 = send_msg_after_update(Res, Routes2, Routes0, State1).
 
 %% @doc Sorts routes in a way that the best route is head of the list.
 -spec update_optimal([netsim_types:route()]) -> [netsim_types:route()].
@@ -270,9 +291,9 @@ send_msg_after_update(R, [NewRoute|_], [], State) ->
     % Route for a new resource is added:
     send_route_msg(#route{resource=R, route=NewRoute, action=change}, State);
 
-send_msg_after_update(R, [], [OldRoute|_], State) ->
+send_msg_after_update(R, [], [OldRoute|_], #state{nodeid=Id}=State) ->
     % Route is deleted:
-    send_route_msg(#route{resource=R, route=OldRoute, action=del}, State);
+    send_route_msg(#route{resource=R, nodeid=Id, action=del}, State);
 
 send_msg_after_update(R, [NewR|_], [CurR|_], State) when NewR /= CurR ->
     % Best new route is changed:
@@ -475,7 +496,7 @@ send_msg_after_update_test() ->
     
     % Route is deleted:
     ?assertMatch(
-        #route{action=del, route=R1},
+        #route{action=del, resource=R, nodeid=d},
         GetMsgRoute(send_msg_after_update(R, [], [R1], State))
     ),
 
@@ -495,6 +516,42 @@ send_msg_after_update_test() ->
     ?assertMatch(
         #route{action=change, route={[a, c, d], {20, 30}}},
         GetMsgRoute(send_msg_after_update(R, [R2], [], State))
+    ).
+
+change_route_test() ->
+    % Overwrite existing route case.
+    Route0 = #route{
+        resource = {a,1},
+        route = {[a, b, c], {10, 2}},
+        action = change
+    },
+    State0 = #state{
+        price = 10,
+        max_latency = 20,
+        nodeid = d,
+        queues = [
+            {{d, b, [{latency, 11}, {bandwidth, 64}]}, []}
+        ],
+        table = [
+            {{a, 1}, [{[a, e, f], {20, 3}}]}
+        ]
+    },
+
+    ?assertMatch(
+        [{[a, b, c], _}, {[a, e, f], _}],
+        proplists:get_value({a, 1}, (change_route(Route0, State0))#state.table)
+    ),
+
+    % Delete existing route case.
+    Route1 = #route{
+        resource = {a, 1},
+        route = {[a, n , e], {44, 1}},
+        action = change
+    },
+
+    ?assertMatch(
+        [],
+        proplists:get_value({a, 1}, (change_route(Route1, State0))#state.table)
     ).
 
 -endif.
