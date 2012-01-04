@@ -145,7 +145,7 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
 
     % Add new route into table:
     Cost = {0, 0},
-    Route = {R, [{R, [NodeId], Cost}]},
+    Route = {R, [{[NodeId], Cost}]},
     RouteTable1 = [Route|RouteTable0],
 
     % Propogate the new resource to neighbours:
@@ -162,7 +162,7 @@ handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
     % have to be deleted:
     Route =
         case proplists:get_value(R, RouteTable0) of
-            [{R, [NodeId], _}]=Route0 -> Route0;
+            [{[NodeId], _}]=Route0 -> Route0;
             Route0 ->
                 throw({inconsistent_route_table, {del_resource, R},
                         RouteTable0})
@@ -248,11 +248,11 @@ change_route(
 %% route's second from the right element is equal to last element of the given.
 -spec find_route(netsim_types:route(), [netsim_types:route()]) ->
     netsim_types:route() | undefined.
-find_route({_, Path, _} = Route, Routes) ->
+find_route({Path, _} = Route, Routes) ->
     LastElement = hd(lists:reverse(Path)),
 
     Res = lists:filter(
-        fun ({_, Path1, _}) ->
+        fun ({Path1, _}) ->
             if
                 % Route that consists of current nodeid:
                 length(Path1) < 2 ->
@@ -281,7 +281,7 @@ find_route({_, Path, _} = Route, Routes) ->
 %% @doc Checks if given Route doesn't have a loop, i.e. there is not nodeid in
 %% route's path.
 -spec has_loop(netsim_types:nodeid(), netsim_types:route()) -> boolean().
-has_loop(NodeId, {_, Path, _}=_Route) ->
+has_loop(NodeId, {Path, _}=_Route) ->
     lists:member(NodeId, Path).
 
 %% =============================================================================
@@ -327,7 +327,7 @@ add_resource_test() ->
     ok = send_event(#event{nodeid=a, resource={a, 1}, action=add_resource}),
 
     ?assertEqual(
-        [{{a, 1}, [{{a, 1}, [a], {0, 0}}]}],
+        [{{a, 1}, [{[a], {0, 0}}]}],
         (state(a))#state.table
     ),
 
@@ -353,11 +353,11 @@ del_resource_test() ->
     ).
 
 find_route_test() ->
-    Route = {1, [a, b], []},
-    Routes = [{1, [c], []}, {1, [a, b, c], []}, {1, [d, e, f, c], []}],
+    Route = {[a, b], []},
+    Routes = [{[c], []}, {[a, b, c], []}, {[d, e, f, c], []}],
 
     ?assertEqual(
-        {1, [a, b, c], []},
+        {[a, b, c], []},
         find_route(Route, Routes)
     ),
     ?assertEqual(
@@ -366,7 +366,7 @@ find_route_test() ->
     ).
 
 has_loop_test() ->
-    ?assert(has_loop(a, {1, [c, a, d], []})),
-    ?assertNot(has_loop(a, {1, [c, d], []})).
+    ?assert(has_loop(a, {[c, a, d], []})),
+    ?assertNot(has_loop(a, {[c, d], []})).
 
 -endif.
