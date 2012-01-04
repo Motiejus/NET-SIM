@@ -79,7 +79,7 @@ handle_cast({route, #route{action=change}, ReportCompleteTo},
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_call({tick, Tick}, _, #state{nodeid=NodeId, queues=Queues, tick=T}=S) ->
+handle_call({tick, Tick}, _, #state{queues=Queues, tick=T}=S) ->
     case (T+1) of
         Tick -> ok;
         _ -> throw({inconsistent_tick, T, Tick})
@@ -99,7 +99,7 @@ handle_call({tick, Tick}, _, #state{nodeid=NodeId, queues=Queues, tick=T}=S) ->
     {noreply, S#state{pending_responses=Pending, queues=NewQ}};
 
 %% @doc Inserts link (into queue).
-handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
+handle_call({add_link, {From0, To0, Metrics}}, _From,
         #state{queues=Queues, nodeid=NodeId}=State) ->
 
     % From should be current process NodeId:
@@ -115,7 +115,7 @@ handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
         lists:foldl(
             fun
                 % New link:
-                ({{F, T, M}, Queue}, Acc)
+                ({{F, T, M}, _Queue}, Acc)
                         when F == From, T == To, M /= Metrics ->
                    Acc;
                 % Existing link:
@@ -132,8 +132,8 @@ handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
     {reply, ok, State#state{queues=Queues1}};
 
 %% @doc Add new resource.
-handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
-        #state{table=RouteTable0, nodeid=NodeId, price=Price, tick=Tick,
+handle_call({event, #event{action=add_resource, resource=R}}, _From,
+        #state{table=RouteTable0, nodeid=NodeId, tick=Tick,
                 queues=Queues}=State) ->
     % Check if given resource does exist:
     case proplists:get_value(R, RouteTable0, '$undefined') of
@@ -155,7 +155,7 @@ handle_call({event, Ev=#event{action=add_resource, resource=R}}, _From,
     {reply, ok, State#state{table=RouteTable1, queues=Queues1}};
 
 %% @doc Delete resource.
-handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
+handle_call({event, #event{action=del_resource, resource=R}}, _From,
         #state{table=RouteTable0, tick=Tick, nodeid=NodeId,
             queues=Queues}=State) ->
     % Find route that is affected by del_resource resource id and
@@ -163,7 +163,7 @@ handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
     Route =
         case proplists:get_value(R, RouteTable0) of
             [{[NodeId], _}]=Route0 -> Route0;
-            Route0 ->
+            _Route0 ->
                 throw({inconsistent_route_table, {del_resource, R},
                         RouteTable0})
         end,
@@ -177,16 +177,16 @@ handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
 
     {reply, ok, State#state{table=RouteTable1, queues=Queues1}};
 
-handle_call({event, Event}, _From, State) ->
+handle_call({event, _Event}, _From, _State) ->
     ok;
 
 handle_call(state, _From, State) ->
     {reply, State, State};
 
-handle_call(Msg, _From, State) ->
+handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
-handle_info(Msg, State) ->
+handle_info(_Msg, State) ->
     {noreply, State}.
 
 terminate(normal, State) ->
@@ -220,10 +220,10 @@ sizeof(Term) ->
 
 %% @doc Changes route table.
 change_route(
-        #route{nodeid=NeighbourNodeId, route=NewRoute, resource=Res},
-        #state{table=RouteTable0, nodeid=Nodeid}=State) ->
+        #route{nodeid=_NeighbourNodeId, route=_NewRoute, resource=Res},
+        #state{table=RouteTable0, nodeid=_Nodeid}=_State) ->
     ResourceRoutes = proplists:get_value(Res, RouteTable0),
-    [CurrentOptimalRoute|_] = ResourceRoutes,
+    [_CurrentOptimalRoute|_] = ResourceRoutes,
 
     % get R = find_route(),
     % delete R from Routes
@@ -253,7 +253,7 @@ send_msg_after_update(R, [NewRoute|_], [], Queue) ->
     % Route for a new resource is added:
     send_msg(#route{resource=R, route=NewRoute, action=change}, Queue);
 
-send_msg_after_update(R, [], [], Queue) ->
+send_msg_after_update(_, [], [], Queue) ->
     % Nothing happened = no msg
     Queue;
 
@@ -269,7 +269,7 @@ send_msg_after_update(R, [NewR|_], _, Queue) ->
 %% route's second from the right element is equal to last element of the given.
 -spec find_route(netsim_types:route(), [netsim_types:route()]) ->
     netsim_types:route() | undefined.
-find_route({Path, _} = Route, Routes) ->
+find_route({Path, _}, Routes) ->
     LastElement = hd(lists:reverse(Path)),
 
     Res = lists:filter(
