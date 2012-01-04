@@ -52,7 +52,7 @@ send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
     {next_state, send_tick, S#state{data=Evs}, 0};
 
 %% @doc Just a tick for every node
-send_tick(timeout, State=#state{time=Time, data=Data}) ->
+send_tick(timeout, State=#state{time=Time}) ->
     Nodes = netsim_sup:list_nodes(),
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack,
@@ -118,8 +118,8 @@ sync_state(State) ->
 
 single_tick() ->
     % Copied from bootstrap
-    {ok, SimulationFile} = file:consult(filename:join([
-                code:priv_dir(netsim), "simulation.txt"])),
+    {ok, SimulationFile} = file:consult(
+        filename:join([code:priv_dir(netsim), "simulation.txt"])),
     netsim_clock_serv:send_data_file(SimulationFile),
     sync_state(finalize),
 
