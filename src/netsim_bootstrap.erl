@@ -39,4 +39,6 @@ init(NodesFiles, ChannelsFile, SimulationFile, LatencyFile) ->
             ok = netsim_serv:add_link(NodeId1, Link)
         end,
         ChannelsList
-    ).
+    ),
+
+    netsim_clock_serv:start(). % Starts ticking

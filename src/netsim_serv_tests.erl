@@ -1,5 +1,5 @@
 %%% @doc netsim_serv_tests
--module(netsim_tests).
+-module(netsim_serv_tests).
 -include("include/log_utils.hrl").
 -include("include/netsim.hrl").
 -include("include/netsim_serv.hrl").
@@ -16,6 +16,8 @@ send_route_sync_test_() ->
     }.
 
 meck_setup() ->
+    application:start(sasl),
+    application:start(netsim),
     meck:new(netsim_serv, [passthrough]),
     meck:expect(netsim_serv, handle_cast, fun
             ({route, #route{action=change}, ReportCompleteTo},
@@ -24,9 +26,7 @@ meck_setup() ->
                 {noreply, State};
             (What, State) ->
                 meck:passthrough([What, State])
-        end),
-    application:start(sasl),
-    application:start(netsim).
+        end).
 
 meck_cleanup(_) ->
     meck:unload(netsim_serv),

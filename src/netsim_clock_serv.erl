@@ -5,7 +5,7 @@
 -behaviour(gen_fsm).
 
 %% API callbacks
--export([start_link/0, node_work_complete/2, send_data_file/1]).
+-export([start_link/0, node_work_complete/2, send_data_file/1, start/0]).
 
 %% gen_fsm callbacks
 -export([init/1, code_change/4, terminate/3, finalize/2,
@@ -30,6 +30,9 @@ send_data_file(Simulation) ->
 start_link() ->
     gen_fsm:start_link({local, ?NETSIM_CLOCK}, ?MODULE, [], []).
 
+start() ->
+    gen_fsm:send_event(?NETSIM_CLOCK, timeout).
+
 %% @doc Ack from node when it completes its processing after receiving the tick
 %%
 %% WorkToDo defines whether node has some remaining work to be done
@@ -41,7 +44,7 @@ node_work_complete(NodeId, WorkToDo) ->
 %% =============================================================================
 -spec wait_for_data([#event{}], #state{}) -> {next_state,send_tick,#state{},0}.
 wait_for_data({data_file, Data}, State=#state{}) ->
-    {next_state, send_tick, State#state{data=Data}, 0}.
+    {next_state, send_tick, State#state{data=Data}}. % Waiting for a trigger
 
 %% @doc Have a message to send. Flush messages
 %%
@@ -121,6 +124,7 @@ single_tick() ->
     {ok, SimulationFile} = file:consult(
         filename:join([code:priv_dir(netsim), "simulation.txt"])),
     netsim_clock_serv:send_data_file(SimulationFile),
+    netsim_clock_serv:start(),
     sync_state(finalize),
 
     % Ensure all events were sent to the nodes
