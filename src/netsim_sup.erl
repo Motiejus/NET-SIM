@@ -4,7 +4,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, add_node/2, list_nodes/0]).
+-export([start_link/0, add_node/3, list_nodes/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -24,11 +24,12 @@ start_link() ->
 list_nodes() ->
     [Id || {Id, _, _, _} <- supervisor:which_children(?MODULE)].
 
--spec add_node(netsim_types:nodeid(), netsim_types:cost()) -> ok.
-add_node(NodeId, Price) ->
+-spec add_node(netsim_types:nodeid(), netsim_types:cost(),
+                netsim_types:latency()) -> ok.
+add_node(NodeId, Price, MaxLatency) ->
     {ok, _} =
         supervisor:start_child(?MODULE, ?CHILD(NodeId, netsim_serv, worker,
-            [NodeId, Price])).
+            [NodeId, Price, MaxLatency])).
 
 %% =============================================================================
 %% Supervisor callbacks

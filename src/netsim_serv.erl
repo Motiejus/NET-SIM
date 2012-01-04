@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -behaviour(gen_server).
 
--export([start_link/2, add_link/2, send_event/1, tick/2, state/1]).
+-export([start_link/3, add_link/2, send_event/1, tick/2, state/1]).
 
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
@@ -14,14 +14,16 @@
         nodeid :: netsim_types:nodeid(),
         table :: netsim_types:route_table(),
         price :: netsim_types:price(),
-        tick = 0 :: pos_integer(), % current tick
+        tick = 0 :: non_neg_integer(), % current tick
+        max_latency :: pos_integer(), % max acceptable latency
         pending_responses = [] :: [netsim_types:nodeid()]
     }).
 
 %% =============================================================================
 
-start_link(Nodeid, Price) ->
-    gen_server:start_link({local, Nodeid}, ?MODULE, [Nodeid, Price], []).
+start_link(Nodeid, Price, MaxLatency) ->
+    gen_server:start_link({local, Nodeid}, ?MODULE,
+        [Nodeid, Price, MaxLatency], []).
 
 -spec add_link(netsim_types:nodeid(), netsim_types:link()) -> ok.
 add_link(NodeId, Link) ->
@@ -49,8 +51,9 @@ state(NodeId) ->
 
 %% =============================================================================
 
-init([Nodeid, Price]) ->
-    {ok, #state{nodeid=Nodeid, price=Price, queues=[], table=[]}}.
+init([Nodeid, Price, MaxLatency]) ->
+    {ok, #state{nodeid=Nodeid, price=Price, max_latency=MaxLatency,
+            queues=[], table=[]}}.
 
 handle_cast({update_complete, NodeId},
     State=#state{pending_responses=Resp}) ->
@@ -230,12 +233,18 @@ sizeof(Term) ->
 %% 1.1.2) False: update CurrentRoute, send change msg to neighbours;
 %% 1.2) False: update route History and reelect a new best route, if new best
 %% route is found, @todo loop send msg to neighbours about it;
-%% @todo FIX #route.routes -> #route.route
+%% @todo check if routetable0 res exists outside.
 change_route(
-        #route{nodeid=NeighbourNodeId, route=NewRoute},
+        #route{nodeid=NeighbourNodeId, route=NewRoute, resource=Res},
         #state{table=RouteTable0, nodeid=Nodeid}=State) ->
-    {_Resource, Path, Cost} = NewRoute,
 
+    ResourceRoutes = proplists:get_value(Res, RouteTable0),
+    [OptimalRoute|_] = ResourceRoutes,
+
+
+    ok.
+
+calc_cost() ->
     ok.
 
 %% =============================================================================
@@ -260,7 +269,7 @@ send_msg_test() ->
     ).
 
 add_link_test() ->
-    start_link(a, 10),
+    start_link(a, 10, 200),
     add_link(a, {b, a, [metrics0]}),
     add_link(a, {a, b, [metrics1]}),
 
@@ -271,8 +280,8 @@ add_link_test() ->
 
 add_resource_test() ->
     % Create 'a' and 'b' nodes:
-    start_link(a, 10),
-    start_link(b, 20),
+    start_link(a, 10, 200),
+    start_link(b, 20, 200),
     % Create link between them:
     add_link(a, {b, a, [{latency, 20}, {bandwidth, 64}]}),
     add_link(b, {b, a, [{latency, 20}, {bandwidth, 64}]}),
