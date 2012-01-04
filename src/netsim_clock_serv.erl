@@ -101,4 +101,47 @@ code_change(_, _, _, State) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
+%% @doc Tick
+clock_serv_test_() ->
+    {foreach,
+        fun setup/0,
+        fun cleanup/1,
+        [
+            {"Single tick test", fun single_tick/0}
+        ]
+    }.
+
+single_tick() ->
+    % Copied from bootstrap
+    %{ok, SimulationFile} = file:consult(filename:join([
+    %            code:priv_dir(netsim), "simulation.txt"])),
+    %netsim_clock_serv:send_data_file(SimulationFile),
+    ok.
+
+setup() ->
+    application:start(sasl),
+    application:start(netsim),
+    meck:new([netsim_serv, netsim_sup]),
+    meck:expect(netsim_sup, list_nodes, 0, [n1, n2]), % We have 2 nodes to test
+    meck:expect(netsim_serv, send_event, fun(_) -> ok end),
+
+    T = ets:new(eunit_state, [set, public]),
+    ets:insert(T, {n1, false}),
+
+    meck:expect(netsim_serv, tick,
+        fun(Node, Time) ->
+                [{n1, N1}] = ets:lookup_element(T, n1),
+                ets:insert(T, {n1, true}),
+                netsim_clock_serv:node_work_complete(n1, N1),
+                netsim_clock_serv:node_work_complete(n2, true)
+        end).
+
+cleanup(_) ->
+    meck:unload([netsim_serv, netsim_sup]),
+
+    error_logger:tty(false),
+    application:stop(netsim),
+    application:stop(sasl),
+    error_logger:tty(true).
+
 -endif.
