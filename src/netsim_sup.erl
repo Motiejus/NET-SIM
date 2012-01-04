@@ -10,7 +10,7 @@
 -export([init/1]).
 
 %% Helper macro for declaring children of supervisor
--define(CHILD(I, Module, Type, Args), {I, {Module, start_link, Args}, permanent,
+-define(CHILD(I, Module, Type, Args), {I, {Module, start_link, Args}, transient,
                                 5000, Type, [I]}).
 
 %% =============================================================================

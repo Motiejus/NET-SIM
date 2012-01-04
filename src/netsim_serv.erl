@@ -49,6 +49,9 @@ tick(NodeId, TickNr) ->
 state(NodeId) ->
     gen_server:call(NodeId, state).
 
+stop(NodeId) ->
+    gen_server:cast(NodeId, stop).
+
 %% =============================================================================
 
 init([Nodeid, Price, MaxLatency]) ->
@@ -75,6 +78,9 @@ handle_cast({route, #route{action=change}, ReportCompleteTo},
 
     gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
     {noreply, State};
+
+handle_cast(stop, State) ->
+    {stop, normal, State};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -150,9 +156,9 @@ handle_call({event, #event{action=add_resource, resource=R}}, _From,
 
     % Propogate the new resource to neighbours:
     Msg = #route{nodeid=NodeId, route=Route, resource=R, action=add, time=Tick},
-    Queues1 = send_msg(Msg, Queues),
+    State1 = send_route_msg(Msg, State#state{table=RouteTable1}),
 
-    {reply, ok, State#state{table=RouteTable1, queues=Queues1}};
+    {reply, ok, State1};
 
 %% @doc Delete resource.
 handle_call({event, #event{action=del_resource, resource=R}}, _From,
@@ -173,9 +179,9 @@ handle_call({event, #event{action=del_resource, resource=R}}, _From,
     % Propogate route deletion to neighbours:
     Msg =
         #route{nodeid=NodeId, route=Route, resource=R, action=del, time=Tick},
-    Queues1 = send_msg(Msg, Queues),
+    State1 = send_route_msg(Msg, State#state{table=RouteTable1}),
 
-    {reply, ok, State#state{table=RouteTable1, queues=Queues1}};
+    {reply, ok, State1};
 
 handle_call({event, _Event}, _From, _State) ->
     ok;
@@ -189,8 +195,8 @@ handle_call(_Msg, _From, State) ->
 handle_info(_Msg, State) ->
     {noreply, State}.
 
-terminate(normal, State) ->
-    State.
+terminate(normal, _State) ->
+    ok.
 
 code_change(_, _, State) ->
     {ok, State}.
@@ -198,21 +204,36 @@ code_change(_, _, State) ->
 %% =============================================================================
 
 %% @doc Puts route message to all outgoing queues.
--spec send_msg(#route{}, netsim_types:msg_queue()) -> netsim_types:msg_queue().
-send_msg(Msg, Queues) ->
-    % Insert new queue item to each queue:
-    lists:map(
+%% Updates latency and price of each route before inserting in queue.
+%% Also adds node to route path.
+-spec send_route_msg(#route{}, #state{}) -> #state{}.
+send_route_msg(#route{action=Action, route=Route}=Msg,
+        #state{nodeid=NodeId, price=Price, queues=Queues}=State) ->
+    % Insert new queue item to each queue.
+    Queues1 = lists:map(
         fun ({{_From, _To, Metrics}=L, Queue}) ->
             Latency = proplists:get_value(latency, Metrics),
             Bandwidth = proplists:get_value(bandwidth, Metrics),
 
+            % Update latency and price of route:
+            Route1 =
+                if
+                    Action == change ->
+                        {Path, {L, P}} = Route,
+                        {Path ++ [NodeId], {L+Latency, P+Price}};
+                    true ->
+                        Route
+                end,
+     
             TimeToSend = Latency + (sizeof(Msg) div Bandwidth),
-            Item =  {Msg, TimeToSend},
+            Item =  {Msg#route{route=Route1}, TimeToSend},
 
             {L, Queue ++ [Item]}
         end,
         Queues
-    ).
+    ),
+
+    State#state{queues=Queues1}.
 
 %% @doc Returns term() size in bits.
 sizeof(Term) ->
@@ -227,10 +248,11 @@ change_route(
 
     % get R = find_route(),
     % delete R from Routes
-    % if without loop NewRoute and max_latency >, insert it
+    % if without loop NewRoute and max_latency >, insert it (add node id to
+    %                          route and price)
     % update_optimal
     % update state
-    % send_msg
+    % send_route_msg
 
     ok.
 
@@ -247,23 +269,22 @@ update_optimal(Routes) ->
 %% @doc Sends route update messages to all neightbours if optimal route has
 %% changed (sending is done by adding msgs to queue).
 -spec send_msg_after_update(netsim_types:resource(), [netsim_types:route()],
-    [netsim_types:route()], netsim_types:msg_queue()) ->
-    netsim_types:msg_queue().
-send_msg_after_update(R, [NewRoute|_], [], Queue) ->
+    [netsim_types:route()], #state{}) -> #state{}.
+send_msg_after_update(R, [NewRoute|_], [], State) ->
     % Route for a new resource is added:
-    send_msg(#route{resource=R, route=NewRoute, action=change}, Queue);
+    send_route_msg(#route{resource=R, route=NewRoute, action=change}, State);
 
-send_msg_after_update(_, [], [], Queue) ->
-    % Nothing happened = no msg
-    Queue;
-
-send_msg_after_update(R, [], [OldRoute|_], Queue) ->
+send_msg_after_update(R, [], [OldRoute|_], State) ->
     % Route is deleted:
-    send_msg(#route{resource=R, route=OldRoute, action=del}, Queue);
+    send_route_msg(#route{resource=R, route=OldRoute, action=del}, State);
 
-send_msg_after_update(R, [NewR|_], _, Queue) ->
+send_msg_after_update(R, [NewR|_], [CurR|_], State) when NewR /= CurR ->
     % Best new route is changed:
-    send_msg(#route{resource=R, route=NewR, action=change}, Queue).
+    send_route_msg(#route{resource=R, route=NewR, action=change}, State);
+
+send_msg_after_update(_, _, _, State) ->
+    % Nothing happened = no msg
+    State.
 
 %% @doc Returns route that was propagated by the same node as given one, i.e.
 %% route's second from the right element is equal to last element of the given.
@@ -312,17 +333,17 @@ has_loop(NodeId, {Path, _}=_Route) ->
 -include_lib("eunit/include/eunit.hrl").
 
 sizeof_test() ->
-    ?assertEqual(120, sizeof({a, b, c})).
+    ?assertEqual(520, sizeof(#route{action=del})).
 
-send_msg_test() ->
-    Msg = {a, b, c},
+send_route_msg_test() ->
+    Msg = #route{action=del},
     Link = {a, b, [{latency, 20}, {bandwidth, 64}]},
     Queues = [{Link, []}],
 
-    Queues1 = send_msg(Msg, Queues),
+    #state{queues=Queues1} = send_route_msg(Msg, #state{queues=Queues}),
 
     ?assertMatch(
-        [{{a, b, [_, _]}, [{Msg, 21}]}],
+        [{{a, b, [_, _]}, [{Msg, 28}]}],
         Queues1
     ).
 
@@ -395,6 +416,19 @@ update_optimal_test() ->
     ?assertMatch(
         [{r_2, _}, {r_3, _}, _],
         update_optimal(Routes)
+    ).
+
+send_msg_after_update_test() ->
+    R = {a, 1}, % Resource
+    R1 = {[a, b], []}, % Route
+    R2 = {[a, c], []}, % Route
+    Link = {from, to, [{latency, 10}, {bandwidth, 64}]},
+    Q = [{Link, []}], % Queue
+    
+    ?assertMatch(
+        %[{#route{action=change, route={[a, b], _}}, _}],
+        [],
+        proplists:get_value(Link, send_msg_after_update(R, [], [], Q))
     ).
 
 -endif.
