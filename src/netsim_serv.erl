@@ -234,24 +234,14 @@ sizeof(Term) ->
 change_route(
         #route{nodeid=NeighbourNodeId, route=NewRoute, resource=Res},
         #state{table=RouteTable0, nodeid=Nodeid}=State) ->
-
     ResourceRoutes = proplists:get_value(Res, RouteTable0),
     [CurrentOptimalRoute|_] = ResourceRoutes,
 
-    % check if latency is less than max_latency.
-    % check if there is no loop.
-    % insert_route
+    % get R = find_route(),
+    % delete R from Routes
+    % if without loop NewRoute, insert it
+    % update_route
 
-
-    ok.
-
-%% @doc Inserts a new route into route table list.
-%% Insertion algorithm:
-%% * Find a route, that was propagated by the same node (i.e. last element is
-%%   equal to the second element from the right side of a route).
-%% * If the price is smaller (and latency is less than max_latency), replace
-%%   it.
-insert_route({_, Path, {_, Price}}=Route, Routes) ->
     ok.
 
 %% @doc Returns route that was propagated by the same node as given one, i.e.
@@ -287,6 +277,12 @@ find_route({_, Path, _} = Route, Routes) ->
         [R] -> R;
         _ -> throw(inconsistent_route_table)
     end.
+
+%% @doc Checks if given Route doesn't have a loop, i.e. there is not nodeid in
+%% route's path.
+-spec has_loop(netsim_types:nodeid(), netsim_types:route()) -> boolean().
+has_loop(NodeId, {_, Path, _}=_Route) ->
+    lists:member(NodeId, Path).
 
 %% =============================================================================
 
@@ -368,5 +364,9 @@ find_route_test() ->
         undefined,
         find_route(Route, [])
     ).
+
+has_loop_test() ->
+    ?assert(has_loop(a, {1, [c, a, d], []})),
+    ?assertNot(has_loop(a, {1, [c, d], []})).
 
 -endif.
