@@ -8,7 +8,6 @@
 
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
-
 -record(state, {
         queues = [] :: [netsim_types:msg_queue()],
         nodeid :: netsim_types:nodeid(),
@@ -436,15 +435,35 @@ update_optimal_test() ->
 
 send_msg_after_update_test() ->
     R = {a, 1}, % Resource
-    R1 = {[a, b], []}, % Route
-    R2 = {[a, c], []}, % Route
+    R1 = {[a, b, d], {10, 20}}, % Route
+    R2 = {[a, c, d], {10, 20}}, % Route
     Link = {from, to, [{latency, 10}, {bandwidth, 64}]},
     Q = [{Link, []}], % Queue
+    State = #state{nodeid=d, queues=Q, price=10},
+    GetMsgRoute = fun (#state{queues=[{_, [{Msg, _}]}]}) -> Msg end,
     
+    % Route is deleted:
     ?assertMatch(
-        %[{#route{action=change, route={[a, b], _}}, _}],
-        [],
-        proplists:get_value(Link, send_msg_after_update(R, [], [], Q))
+        #route{action=del, route=R1},
+        GetMsgRoute(send_msg_after_update(R, [], [R1], State))
+    ),
+
+    % Route is changed:
+    ?assertMatch(
+        #route{action=change, route={[a, c, d], {20, 30}}},
+        GetMsgRoute(send_msg_after_update(R, [R2], [R1], State))
+    ),
+
+    % Route is untouched:
+    ?assertMatch(
+        [{_, []}],
+        (send_msg_after_update(R, [R1], [R1], State))#state.queues
+    ),
+
+    % New route is added:
+    ?assertMatch(
+        #route{action=change, route={[a, c, d], {20, 30}}},
+        GetMsgRoute(send_msg_after_update(R, [R2], [], State))
     ).
 
 -endif.
