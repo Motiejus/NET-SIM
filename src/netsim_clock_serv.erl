@@ -52,13 +52,13 @@ send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
     {next_state, send_tick, S#state{data=Evs}, 0};
 
 %% @doc Just a tick for every node
-send_tick(timeout, State=#state{time=Time}) ->
+send_tick(timeout, State=#state{time=Time, data=Data}) ->
     Nodes = netsim_sup:list_nodes(),
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack,
         State#state{time=Time+1, nodes=Nodes, work_left=false}}.
 
-node_ack({node_ack, N, false}, State=#state{nodes=[N], work_left=false}) ->
+node_ack({node_ack,N,false}, State=#state{nodes=[N],work_left=false,data=[]}) ->
     {next_state, finalize, State#state{nodes=[]}};
 
 node_ack({node_ack, N, _}, State=#state{nodes=[N]}) ->
@@ -122,7 +122,10 @@ single_tick() ->
                 code:priv_dir(netsim), "simulation.txt"])),
     netsim_clock_serv:send_data_file(SimulationFile),
     sync_state(finalize),
-    ok.
+
+    % Ensure all events were sent to the nodes
+    ?assertEqual(length(SimulationFile),
+        length([ok || {_,{_,send_event,_},_} <- meck:history(netsim_serv)])).
 
 setup() ->
     application:start(sasl),
