@@ -8,7 +8,7 @@
     }).
 
 -record(route, {
-    action :: add | del,
+    action :: change | del,
     nodeid :: netsim_types:nodeid(), % from
     time :: netsim_types:latency(),
     route :: [netsim_types:route()],
