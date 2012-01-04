@@ -56,15 +56,15 @@ send_tick(tick, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
     {next_state, send_tick, S#state{data=Evs}};
 
 %% @doc Just a tick for every node
-send_tick(tick, State=#state{time=Watch}) ->
+send_tick(tick, State=#state{time=Time}) ->
     % enqueue another tick for future
     gen_fsm:send_event(self(), tick),
 
     % Enqueue a tick to all nodes
     Nodes = netsim_sup:list_nodes(),
-    [netsim_serv:tick(Node, Watch) || Node <- Nodes],
+    [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack,
-        State#state{time=Watch+1, nodes=Nodes, work_left=false}}.
+        State#state{time=Time+1, nodes=Nodes, work_left=false}}.
 
 node_ack({node_ack, N, false}, State=#state{nodes=[N], work_left=false}) ->
     {next_state, send_tick, State#state{nodes=[]}};
