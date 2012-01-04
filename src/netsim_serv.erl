@@ -79,18 +79,24 @@ handle_cast({route, #route{action=change}, ReportCompleteTo},
 handle_cast(Msg, State) ->
     {noreply, State}.
 
-handle_call(tick, _From, #state{nodeid=NodeId, queues=Queues}=State) ->
-    % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
-    % link() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics()}.
+handle_call({tick, Tick}, _, #state{nodeid=NodeId, queues=Queues, tick=T}=S) ->
+    case (T+1) of
+        Tick -> ok;
+        _ -> throw({inconsistent_tick, T, Tick})
+    end,
 
     S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == 0],
     % S :: [{To :: nodeid(), Route :: #route{}}]
 
-    % @todo update every queue head: decrease Tick
 
     Pending = [To || {To, _Route} <- S],
     [send_route(To, Route, self()) || {To, Route} <- S],
-    {noreply, State#state{pending_responses=Pending}};
+
+    % Update every queue head: decrease Tick
+    % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
+    NewQ = [ { L, [{M,T-1}||{M,T}<-Arr] } || {L, Arr} <- Queues, T =/= 0],
+
+    {noreply, S#state{pending_responses=Pending, queues=NewQ}};
 
 %% @doc Inserts link (into queue).
 handle_call({add_link, {From0, To0, Metrics}=Link0}, _From,
@@ -170,16 +176,6 @@ handle_call({event, Ev=#event{action=del_resource, resource=R}}, _From,
     State1 = send_msg(Msg, State#state{table=RouteTable1}),
 
     {reply, ok, State1};
-
-%% @doc Updates process tick.
-handle_call({tick, Tick}, _From, #state{nodeid=NodeId, tick=T}=State) ->
-    case (T+1) of
-        Tick ->
-            gen_server:cast(self(), tick),
-            {reply, ok, State#state{tick=Tick}};
-        _ ->
-            throw({inconsistent_tick, T, Tick})
-    end;
 
 handle_call({event, Event}, _From, State) ->
     ok;
