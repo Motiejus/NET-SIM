@@ -31,12 +31,13 @@ send_event(Event=#event{resource={NodeId, _}}) ->
 %% After locally work is done, cast {update_complete, NodeId} to ReplySuccessTo
 %%
 send_route(NodeId, #route{}=Route, ReplySuccessTo) ->
+    lager:info("Sending route ~p", [Route]),
     gen_server:cast(NodeId, {route, Route, ReplySuccessTo}).
 
 %% @doc Sends tick to a node.
 -spec tick(netsim_types:nodeid(), pos_integer()) -> ok.
 tick(NodeId, TickNr) ->
-    gen_server:call(NodeId, {tick, TickNr}).
+    gen_server:cast(NodeId, {tick, TickNr}).
 
 state(NodeId) ->
     gen_server:call(NodeId, state).
@@ -68,25 +69,26 @@ handle_cast({route, #route{action=Action}=RouteMsg, ReportCompleteTo},
             del -> delete_route(RouteMsg, State)
         end,
 
+    lager:info("Casting update_complete"),
     gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
     {noreply, State1};
 
-handle_cast(stop, State) ->
-    {stop, normal, State};
-
-handle_cast(_Msg, State) ->
-    {noreply, State}.
-
-handle_call({tick, Tick}, _, State=#state{queues=Queues, tick=Tick1}) ->
+handle_cast({tick, Tick}, State=#state{
+        queues=Queues, tick=Tick1, nodeid=NodeId}) ->
     case (Tick1+1) of
         Tick -> ok;
         _ -> throw({inconsistent_tick, Tick1, Tick})
     end,
-
     S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == 0],
     % S :: [{To :: nodeid(), Route :: #route{}}]
 
     Pending = [To || {To, _Route} <- S],
+    case Pending of
+        [] -> netsim_clock_serv:node_work_complete(NodeId, true);
+        _ -> ok
+    end,
+    lager:info("Tick: ~p, Send queue to: ~p, pending: ~p", [Tick, S, Pending]),
+
     [send_route(To, Route, self()) || {To, Route} <- S],
 
     % @todo Update outgoing queue sent_size
@@ -95,7 +97,13 @@ handle_call({tick, Tick}, _, State=#state{queues=Queues, tick=Tick1}) ->
     % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
     NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
-    {noreply, State#state{pending_responses=Pending, queues=NewQ}};
+    {noreply, State#state{pending_responses=Pending, queues=NewQ, tick=Tick+1}};
+
+handle_cast(stop, State) ->
+    {stop, normal, State};
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
 
 %% @doc Inserts link (into queue).
 handle_call({add_link, {From0, To0, Metrics}}, _From,
