@@ -72,27 +72,23 @@ send_tick(timeout, State=#state{time=Time}) ->
     Nodes = netsim_sup:list_nodes(),
     lager:info("Sending a tick to Nodes: ~p, tick: ~p", [Nodes, Time]),
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
-    {next_state, node_ack,
-        State#state{time=Time+1, nodes=Nodes, done=true}}.
+    {next_state, node_ack, State#state{nodes=Nodes, done=true}}.
 
 node_ack({node_ack, N, true}, State=#state{nodes=[N], done=true, data=[]}) ->
+    lager:info("Final deleted node ~p", [N]),
     {next_state, finalize, State#state{nodes=[]}};
 
-node_ack({node_ack, N, _}, State=#state{nodes=[N]}) ->
-    lager:info("Last node acked: ~p", [N]),
-    {next_state, send_tick, State#state{nodes=[]}, 0};
+node_ack({node_ack, N, _}, State=#state{nodes=[N], time=T}) ->
+    lager:info("Got answer from last node ~p, time: ~p", [N, T]),
+    {next_state, send_tick, State#state{nodes=[], time=T+1}, 0};
 
-node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2}) ->
-    lager:info("Got answer from node ~p", [N]),
-    case lists:member(N, Nodes) of
-        true ->
-            {next_state, node_ack, State#state{
-                    done = D1 and D2,
-                    nodes=lists:delete(N, Nodes)
-                }};
-        false ->
-            throw({node_already_deleted, N})
-    end.
+node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2, time=T}) ->
+    lager:info("Got answer from node ~p, time: ~p", [N, T]),
+    {next_state, node_ack, State#state{
+            done = D1 and D2,
+            nodes=lists:delete(N, Nodes)
+        }
+    }.
 
 finalize(timeout, State) ->
     {next_state, finalize, State};
