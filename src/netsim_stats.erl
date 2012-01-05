@@ -28,7 +28,7 @@ start_link() ->
 
 %% @doc API
 add_del_node(Event=#event{}) ->
-    gen_server:call({add_del_node, Event}).
+    gen_server:call(?MODULE, {add_del_node, Event}).
 
 %% @doc API for adding and deleting route
 -spec add_route(When :: netsim_types:latency(), netsim_types:resource()) -> ok.
@@ -48,8 +48,8 @@ handle_call({define_resource, Res, Upto}, _, State=#state{}) ->
     {reply, ok, State#state{res=Res, upto=Upto}};
 
 %% @doc Add or delete node
-handle_call({add_del_node, _}, _, #state{res=update_me}) ->
-    throw(tell_resource_before_collecting);
+handle_call({add_del_node, _}, _, State=#state{res=update_this}) ->
+    {reply, tell_resource_before_collecting, State};
 
 handle_call({add_del_node, #event{time=T, action=A, resource=Res}}, _From,
     State=#state{res=Res, waiting_for=A, sofar=Sofar}) ->
@@ -96,3 +96,30 @@ handle_info(_Msg, State) ->
 
 set_value(K, V, Proplist) ->
     [{K, V}|proplists:delete(K, Proplist)].
+
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+stats_test_() ->
+    {foreach,
+        fun start_link/0,
+        fun cleanup/1,
+        [
+            fun test_add_node_before/0,
+            fun test_functional/0
+        ]
+    }.
+
+test_add_node_before() ->
+    ?assertEqual(
+        tell_resource_before_collecting,
+        add_del_node(#event{resource=x})
+    ).
+
+test_functional() ->
+    ok.
+
+cleanup(_) -> ok.
+
+-endif.
