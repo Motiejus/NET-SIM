@@ -16,7 +16,7 @@
 -export([wait_for_data/2, send_tick/2, node_ack/2]).
 
 -record(state, {
-        time = 0 :: pos_integer(),
+        time = 1 :: pos_integer(),
         data = [] :: [#'event'{}],
         nodes = [] :: [netsim_types:nodeid()], % Nodes that did not send ack
         done = false % Whether all nodes are done with their work
