@@ -1,4 +1,5 @@
 %% @doc
+-include("include/log_utils.hrl").
 
 -module(netsim_bootstrap).
 

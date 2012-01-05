@@ -20,3 +20,24 @@ start(_, _) ->
 stop(_State) ->
     ok.
 
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+integration_test_() ->
+    {foreach,
+        fun start_app/0,
+        fun cleanup/1,
+        [
+            {"Yadda test", fun yadda/0}
+        ]
+    }.
+
+yadda() ->
+    timer:sleep(100),
+    ok.
+
+cleanup(_) ->
+    stop_app().
+
+-endif.
