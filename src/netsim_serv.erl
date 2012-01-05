@@ -116,9 +116,6 @@ handle_cast({tick, Tick},
 
     {noreply, State#state{tick=Tick, pending_responses=Pending, queues=NewQ}};
 
-handle_cast(stop, State) ->
-    {stop, normal, State};
-
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
