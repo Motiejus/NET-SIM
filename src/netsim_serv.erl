@@ -60,16 +60,16 @@ handle_cast({update_complete, NodeId},
     end,
     State#state{pending_responses=lists:delete(NodeId, Resp)};
 
-handle_cast({route, #route{action=change}, ReportCompleteTo},
-    #state{table=_RouteTable0, nodeid=NodeId}=State) ->
-
-    % Change current route
-    % Propagate current route
-
-    % @todo
+handle_cast({route, #route{action=Action}=RouteMsg, ReportCompleteTo},
+        #state{nodeid=NodeId}=State) ->
+    State1 = 
+        case Action of
+            change -> change_route(RouteMsg, State);
+            delete -> delete_route(RouteMsg, State)
+        end,
 
     gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
-    {noreply, State};
+    {noreply, State1};
 
 handle_cast(stop, State) ->
     {stop, normal, State};
