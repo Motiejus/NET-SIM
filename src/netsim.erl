@@ -8,6 +8,7 @@
 
 start_app() ->
     ok = application:start(sasl),
+    ok = application:start(lager),
     ok = application:start(netsim),
     netsim_bootstrap:init().
 

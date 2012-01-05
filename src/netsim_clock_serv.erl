@@ -34,6 +34,13 @@ start_link() ->
 start() ->
     gen_fsm:send_event(?NETSIM_CLOCK, timeout).
 
+sync_state(State) ->
+    case gen_fsm:sync_send_all_state_event(?NETSIM_CLOCK, give_me_state_name) of
+        State -> ok;
+        _  -> timer:sleep(10), sync_state(State)
+    end.
+
+
 %% @doc Ack from node when it completes its processing after receiving the tick
 %%
 %% WorkToDo defines whether node has some remaining work to be done
@@ -52,6 +59,8 @@ wait_for_data({data_file, Data}, State=#state{}) ->
 %% That are supposed to be flushed during this tick
 -spec send_tick(tick, #state{}) -> {next_state, send_tick, #state{}, 0}.
 send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
+    %?info([{event, E}, {time, W}]),
+    lager:info("Sending event: ~p~p", [E, {time, W}]),
     netsim_serv:send_event(E),
     {next_state, send_tick, S#state{data=Evs}, 0};
 
@@ -61,6 +70,7 @@ send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
 %% from the nodes. If any ACK says "not done", then update #state.done to false.
 send_tick(timeout, State=#state{time=Time}) ->
     Nodes = netsim_sup:list_nodes(),
+    lager:info("Sending a tick to Nodes: ~p", [Nodes]),
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack,
         State#state{time=Time+1, nodes=Nodes, done=true}}.
@@ -104,6 +114,7 @@ terminate(_, _, _) ->
 code_change(_, _, _, State) ->
     {ok, State}.
 
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -116,12 +127,6 @@ clock_serv_test_() ->
             {"Single tick test", fun single_tick/0}
         ]
     }.
-
-sync_state(State) ->
-    case gen_fsm:sync_send_all_state_event(?NETSIM_CLOCK, give_me_state_name) of
-        State -> ok;
-        _  -> timer:sleep(10), sync_state(State)
-    end.
 
 single_tick() ->
     % Copied from bootstrap
