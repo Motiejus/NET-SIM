@@ -17,7 +17,7 @@
 -record(state, {
         time = 0 :: pos_integer(),
         data = [] :: [#'event'{}],
-        nodes = [] :: [atom()], % Atoms of nodes that did not send ack
+        nodes = [] :: [netsim_types:nodeid()], % Nodes that did not send ack
         done = false % Whether all nodes are done with their work
     }
 ).
