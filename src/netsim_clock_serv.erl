@@ -17,8 +17,8 @@
 
 -record(state, {
         time = 1 :: pos_integer(),
-        data = [] :: [#'event'{}],
         nodes = [] :: [netsim_types:nodeid()], % Nodes that did not send ack
+        data = [] :: [#'event'{}],
         done = false % Whether all nodes are done with their work
     }
 ).
@@ -50,7 +50,7 @@ node_work_complete(NodeId, WorkToDo) ->
 
 %% Ticking implementation
 %% =============================================================================
--spec wait_for_data([#event{}], #state{}) -> {next_state,send_tick,#state{},0}.
+-spec wait_for_data([#event{}], #state{}) -> {next_state, send_tick, #state{}}.
 wait_for_data({data_file, Data}, State=#state{}) ->
     {next_state, send_tick, State#state{data=Data}}. % Waiting for a trigger
 
@@ -59,10 +59,10 @@ wait_for_data({data_file, Data}, State=#state{}) ->
 %% That are supposed to be flushed during this tick
 -spec send_tick(tick, #state{}) -> {next_state, send_tick, #state{}, 0}.
 send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
-    %?info([{event, E}, {time, W}]),
     lager:info("Sending event: ~p~p", [E, {time, W}]),
     netsim_serv:send_event(E),
-    {next_state, send_tick, S#state{data=Evs}, 0};
+    %{next_state, send_tick, S#state{data=Evs}, 0};
+    send_tick(timeout, S#state{data=Evs});
 
 %% @doc Just a tick for every node
 %%
@@ -106,7 +106,7 @@ init([]) ->
 
 %% for debugging
 handle_sync_event(give_me_state_name, _From, StateName, StateData) ->
-    {reply, StateName, StateName, StateData, 0}.
+    {reply, StateName, StateName, StateData}.
 handle_event(event, statename, State) ->
     {stop, undefined, State}.
 handle_info(info, statename, State) ->

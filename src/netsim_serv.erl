@@ -97,8 +97,8 @@ handle_cast({tick, Tick},
         _ -> throw({inconsistent_tick, Tick1, Tick, State})
     end,
 
-    lager:info("~p: Got tick: ~p (state: ~p)~n",
-        [NodeId, Tick, State]),
+    %lager:info("~p: Got tick: ~p (state: ~p)~n",
+    %    [NodeId, Tick, State]),
 
     S = [{To, R} || {{_, To, _, _}, MT} <- Queues, {R, T} <- MT, T == 1],
     % S :: [{To :: nodeid(), Route :: #route{}}]
@@ -131,7 +131,7 @@ handle_cast({tick, Tick},
             Queues
         ),
 
-    lager:info("~p: Finished tick: ~p pending: ~p ~n", [NodeId, Tick, Pending]),
+    lager:info("Finished tick: from ~p at ~p, pending: ~p ~n", [NodeId, Tick, Pending]),
         
     %NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
