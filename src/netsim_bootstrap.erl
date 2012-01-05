@@ -23,12 +23,12 @@ init(NodesFiles, ChannelsFile, SimulationFile, LatencyFile) ->
     % ChannelsList :: [{From, To, Latency, Bandwith}]
     {ok, ChannelsList} = file:consult(ChannelsFile),
     % SimulationFile :: {Time, Queueid, Resource}
-    {ok, SimulationFile} = file:consult(SimulationFile),
+    {ok, SimulationList} = file:consult(SimulationFile),
     % LatencyFile :: MaxLatency
     {ok, [MaxLatency]} = file:consult(LatencyFile),
 
     % Send SimulationFile to clock_serv
-    netsim_clock_serv:send_data_file(SimulationFile),
+    netsim_clock_serv:send_data_file(SimulationList),
 
     % Start nodes without channels:
     [netsim_sup:add_node(Id, Price, MaxLatency) || {Id, Price} <- NodesList],
