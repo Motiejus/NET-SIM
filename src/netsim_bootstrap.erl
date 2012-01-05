@@ -8,10 +8,10 @@
 %% @doc Runs init with args.`
 init() ->
     init(
-        filename:join([code:priv_dir(netsim), "nodelist.txt"]),
-        filename:join([code:priv_dir(netsim), "channels.txt"]),
-        filename:join([code:priv_dir(netsim), "simulation.txt"]),
-        filename:join([code:priv_dir(netsim), "max_latency.txt"])
+        filename:join(["..", "priv", "nodelist.txt"]),
+        filename:join(["..", "priv", "channels.txt"]),
+        filename:join(["..", "priv", "simulation.txt"]),
+        filename:join(["..", "priv", "max_latency.txt"])
     ).
 
 %% @doc Reads data from files and creates new nodes setup.
@@ -35,9 +35,11 @@ init(NodesFiles, ChannelsFile, SimulationFile, LatencyFile) ->
 
     % Init channels:
     lists:foreach(
-        fun ({NodeId0, NodeId1, _, _}=Link) ->
-            ok = netsim_serv:add_link(NodeId0, Link),
-            ok = netsim_serv:add_link(NodeId1, Link)
+        fun ({NodeId0, NodeId1, Latency1, Bandwidth1}=Link) ->
+            Link1 = {NodeId0, NodeId1,
+                [{latency, Latency1}, {bandwidth, Bandwidth1}]},
+            ok = netsim_serv:add_link(NodeId0, Link1),
+            ok = netsim_serv:add_link(NodeId1, Link1)
         end,
         ChannelsList
     ),

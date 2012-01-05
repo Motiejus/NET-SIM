@@ -64,6 +64,8 @@ handle_cast({update_complete, NodeId},
 handle_cast({route, #route{action=Action, nodeid=RemoteNodeId}=RouteMsg,
     ReportCompleteTo}, #state{nodeid=NodeId, queues=Queues}=State) ->
 
+    lager:info("Route event: NodeID: ~p Route: ~p~n", [NodeId, RouteMsg]),
+
     % Update RX:
     Queues1 = lists:map(
         fun
@@ -92,8 +94,11 @@ handle_cast({tick, Tick},
         State=#state{nodeid=NodeId,queues=Queues, tick=Tick1}) ->
     case (Tick1+1) of
         Tick -> ok;
-        _ -> throw({inconsistent_tick, Tick1, Tick})
+        _ -> throw({inconsistent_tick, Tick1, Tick, State})
     end,
+
+    lager:info("~p: Got tick: ~p (state: ~p)~n",
+        [NodeId, Tick, State]),
 
     S = [{To, R} || {{_, To, _, _}, MT} <- Queues, {R, T} <- MT, T == 1],
     % S :: [{To :: nodeid(), Route :: #route{}}]
@@ -120,11 +125,13 @@ handle_cast({tick, Tick},
                     [{M, Time}|T] ->
                         {{From, To, Metrics, {TX, RX}}, [{M, Time-1}|T]};
                     _ ->
-                        Q
+                        {{From, To, Metrics, {TX, RX}}, Q}
                 end
             end,
             Queues
         ),
+
+    lager:info("~p: Finished tick: ~p~n", [NodeId, Tick]),
         
     %NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
@@ -150,7 +157,7 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
         lists:foldl(
             fun
                 % New link:
-                ({{F, T, M, _}, _Queue}, Acc)
+                ({{F, T, M, _}=L, Queue}, Acc)
                         when F == From, T == To, M /= Metrics ->
                     Acc;
                 % Existing link:
@@ -169,6 +176,7 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
 %% @doc Add new resource.
 handle_call({event, #event{action=add_resource, resource=R}}, _From,
         #state{table=RouteTable0, nodeid=NodeId, tick=Tick}=State) ->
+
     % Check if given resource does exist:
     case proplists:get_value(R, RouteTable0, '$undefined') of
         '$undefined' ->
@@ -193,6 +201,7 @@ handle_call({event, #event{action=add_resource, resource=R}}, _From,
 %% @doc Delete resource.
 handle_call({event, #event{action=del_resource, resource=R}}, _From,
         #state{table=RouteTable0, tick=Tick, nodeid=NodeId}=State) ->
+    lager:info("Del resource: ~p~n", [State]),
     % Find route that is affected by del_resource resource id and
     % have to be deleted:
     Route =
