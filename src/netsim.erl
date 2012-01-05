@@ -1,4 +1,5 @@
 -module(netsim).
+-include("include/log_utils.hrl").
 
 -behavior(application).
 
@@ -6,16 +7,15 @@
 -export([start/2, stop/1]).
 
 start_app() ->
-    application:start(netsim),
-
+    ok = application:start(sasl),
+    ok = application:start(netsim),
     netsim_bootstrap:init().
 
 start(_, _) ->
-    netsim_sup:start_link().
+    {ok, _Pid} = netsim_sup:start_link().
 
 stop(_State) ->
     ok.
-
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -34,6 +34,9 @@ yadda() ->
     ok.
 
 cleanup(_) ->
-    stop_app().
+    ?mute_log(),
+    application:stop(sasl),
+    application:stop(netsim),
+    ?unmute_log().
 
 -endif.
