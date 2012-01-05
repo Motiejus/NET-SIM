@@ -98,7 +98,7 @@ handle_event(event, statename, State) ->
     {stop, undefined, State}.
 handle_info(info, statename, State) ->
     {stop, undefined, State}.
-terminate(_, _, _) ->
+terminate(normal, _, _) ->
     ok.
 code_change(_, _, _, State) ->
     {ok, State}.
