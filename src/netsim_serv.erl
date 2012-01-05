@@ -65,7 +65,7 @@ handle_cast({route, #route{action=Action}=RouteMsg, ReportCompleteTo},
     State1 = 
         case Action of
             change -> change_route(RouteMsg, State);
-            delete -> delete_route(RouteMsg, State)
+            del -> delete_route(RouteMsg, State)
         end,
 
     gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
@@ -550,6 +550,10 @@ delete_route_test() ->
         [{[a, e, d], _}],
         proplists:get_value({a, 1}, (delete_route(Route0, State0))#state.table)
     ),
+    ?assertMatch(
+        [{{d, b, _}, [{#route{action=change, route={[a, e, d], _}}, _}]}],
+        (delete_route(Route0, State0))#state.queues
+    ),
 
     % Delete route table entry.
     Route1 = #route{
@@ -572,6 +576,10 @@ delete_route_test() ->
     ?assertMatch(
         undefined,
         proplists:get_value({a, 1}, (delete_route(Route1, State1))#state.table)
+    ),
+    ?assertMatch(
+        [{{d, b, _}, [{#route{action=del, nodeid=d}, _}]}],
+        (delete_route(Route1, State1))#state.queues
     ).
 
 -endif.
