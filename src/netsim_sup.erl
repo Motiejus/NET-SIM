@@ -22,7 +22,8 @@ start_link() ->
 
 -spec list_nodes() -> [netsim_types:nodeid()].
 list_nodes() ->
-    [Id || {Id, _, _, _} <- supervisor:which_children(?MODULE)].
+    [Id || {Id, _, _, _} <- supervisor:which_children(?MODULE),
+        Id =/= netsim_clock_serv].
 
 -spec add_node(netsim_types:nodeid(), netsim_types:cost(),
                 netsim_types:latency()) -> ok.
