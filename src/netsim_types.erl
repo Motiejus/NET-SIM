@@ -9,7 +9,9 @@
 -type resource() :: {Node :: nodeid(), ResNum :: pos_integer()}.
 -type metric_attribute() :: {latency, latency()} | {bandwidth, bandwidth()}.
 -type metrics() :: [metric_attribute()].
--type link() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics()}.
+-type link() :: {From :: nodeid(), To :: nodeid(), Metrics :: metrics(),
+                {TX :: size(), RX :: size()}}.
+-type size() :: non_neg_integer(). % Bits
 -type path() :: [nodeid()].
 -type cost() :: {latency(), price()}.
 -type route() :: {path(), cost()}.

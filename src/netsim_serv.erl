@@ -89,6 +89,8 @@ handle_call({tick, Tick}, _, State=#state{queues=Queues, tick=Tick1}) ->
     Pending = [To || {To, _Route} <- S],
     [send_route(To, Route, self()) || {To, Route} <- S],
 
+    % @todo Update outgoing queue sent_size
+
     % Update every queue head: decrease Tick
     % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
     NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
@@ -105,16 +107,16 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
             NodeId -> {From0, To0};
             _ -> {To0, From0}
         end,
-    Link = {From, To, Metrics},
+    Link = {From, To, Metrics, {0, 0}},
 
     % Update queues (insert new link):
     Queues1 =
         lists:foldl(
             fun
                 % New link:
-                ({{F, T, M}, _Queue}, Acc)
+                ({{F, T, M, _}, _Queue}, Acc)
                         when F == From, T == To, M /= Metrics ->
-                   Acc;
+                    Acc;
                 % Existing link:
                 ({L, _}, Acc) when L == Link ->
                     Acc;
@@ -199,7 +201,7 @@ send_route_msg(#route{action=Action, route=Route}=Msg,
         #state{price=Price, queues=Queues}=State) ->
     % Insert new queue item to each queue.
     Queues1 = lists:map(
-        fun ({{_From, _To, Metrics}=Link, Queue}) ->
+        fun ({{_From, _To, Metrics, _Traffic}=Link, Queue}) ->
             Latency = proplists:get_value(latency, Metrics),
             Bandwidth = proplists:get_value(bandwidth, Metrics),
 
@@ -360,13 +362,13 @@ sizeof_test() ->
 
 send_route_msg_test() ->
     Msg = #route{action=del},
-    Link = {a, b, [{latency, 20}, {bandwidth, 64}]},
+    Link = {a, b, [{latency, 20}, {bandwidth, 64}], {0, 0}},
     Queues = [{Link, []}],
 
     #state{queues=Queues1} = send_route_msg(Msg, #state{queues=Queues}),
 
     ?assertMatch(
-        [{{a, b, [_, _]}, [{Msg, 28}]}],
+        [{{a, b, [_, _], _}, [{Msg, 28}]}],
         Queues1
     ),
 
@@ -383,7 +385,7 @@ send_route_msg_test() ->
     },
     #state{queues=Queues2} = send_route_msg(Msg1, State1),
     ?assertMatch(
-        [{{a, b, [_, _]}, [{#route{route={[b, c, d], {30, 42}}}, _}]}],
+        [{{a, b, [_, _], _}, [{#route{route={[b, c, d], {30, 42}}}, _}]}],
         Queues2
     ).
 
@@ -393,7 +395,7 @@ add_link_test() ->
     add_link(a, {a, b, [metrics1]}),
 
     ?assertEqual(
-        [{{a, b, [metrics1]}, []}],
+        [{{a, b, [metrics1], {0, 0}}, []}],
         (state(a))#state.queues
     ).
 
@@ -414,7 +416,7 @@ add_resource_test() ->
     ),
 
     ?assertMatch(
-        [{{a, b, _}, [_]}],
+        [{{a, b, _, _}, [_]}],
         (state(a))#state.queues
     ).
 
@@ -430,7 +432,7 @@ del_resource_test() ->
     ),
 
     ?assertMatch(
-        [{{a, b, _}, [_, _]}],
+        [{{a, b, _, _}, [_, _]}],
         (state(a))#state.queues
     ).
 
@@ -462,7 +464,7 @@ send_msg_after_update_test() ->
     R = {a, 1}, % Resource
     R1 = {[a, b, d], {10, 20}}, % Route
     R2 = {[a, c, d], {10, 20}}, % Route
-    Link = {from, to, [{latency, 10}, {bandwidth, 64}]},
+    Link = {from, to, [{latency, 10}, {bandwidth, 64}], {0, 0}},
     Q = [{Link, []}], % Queue
     State = #state{nodeid=d, queues=Q, price=10},
     GetMsgRoute = fun (#state{queues=[{_, [{Msg, _}]}]}) -> Msg end,
@@ -503,7 +505,7 @@ change_route_test() ->
         max_latency = 20,
         nodeid = d,
         queues = [
-            {{d, b, [{latency, 11}, {bandwidth, 64}]}, []}
+            {{d, b, [{latency, 11}, {bandwidth, 64}], {0, 0}}, []}
         ],
         table = [
             {{a, 1}, [{[a, e, f], {20, 3}}]}
@@ -539,7 +541,7 @@ delete_route_test() ->
         max_latency = 20,
         nodeid = d,
         queues = [
-            {{d, b, [{latency, 11}, {bandwidth, 64}]}, []}
+            {{d, b, [{latency, 11}, {bandwidth, 64}], {0, 0}}, []}
         ],
         table = [
             {{a, 1}, [{[a, b, d], {20, 3}}, {[a, e, d], {11, 10}}]}
@@ -551,7 +553,7 @@ delete_route_test() ->
         proplists:get_value({a, 1}, (delete_route(Route0, State0))#state.table)
     ),
     ?assertMatch(
-        [{{d, b, _}, [{#route{action=change, route={[a, e, d], _}}, _}]}],
+        [{{d, b, _, _}, [{#route{action=change, route={[a, e, d], _}}, _}]}],
         (delete_route(Route0, State0))#state.queues
     ),
 
@@ -566,7 +568,7 @@ delete_route_test() ->
         max_latency = 20,
         nodeid = d,
         queues = [
-            {{d, b, [{latency, 11}, {bandwidth, 64}]}, []}
+            {{d, b, [{latency, 11}, {bandwidth, 64}], {0, 0}}, []}
         ],
         table = [
             {{a, 1}, [{[a, e, d], {11, 10}}]}
@@ -578,7 +580,7 @@ delete_route_test() ->
         proplists:get_value({a, 1}, (delete_route(Route1, State1))#state.table)
     ),
     ?assertMatch(
-        [{{d, b, _}, [{#route{action=del, nodeid=d}, _}]}],
+        [{{d, b, _, _}, [{#route{action=del, nodeid=d}, _}]}],
         (delete_route(Route1, State1))#state.queues
     ).
 
