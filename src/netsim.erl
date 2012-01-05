@@ -30,7 +30,7 @@ integration_test_() ->
     }.
 
 yadda() ->
-    timer:sleep(100),
+    netsim_clock_serv:sync_state(finalize),
     ok.
 
 cleanup(_) ->

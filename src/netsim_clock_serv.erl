@@ -5,7 +5,8 @@
 -behaviour(gen_fsm).
 
 %% API callbacks
--export([start_link/0, node_work_complete/2, send_data_file/1, start/0]).
+-export([start_link/0, node_work_complete/2, send_data_file/1, start/0,
+        sync_state/1]).
 
 %% gen_fsm callbacks
 -export([init/1, code_change/4, terminate/3, finalize/2,
