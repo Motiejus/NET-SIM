@@ -36,8 +36,8 @@ start() ->
 
 sync_state(State) ->
     case gen_fsm:sync_send_all_state_event(?NETSIM_CLOCK, give_me_state_name) of
-        State -> ok;
-        _  -> timer:sleep(10), sync_state(State)
+        {State, Data} -> lager:info("State: ~p~n~p", [State, Data]), ok;
+        {X, Data} -> lager:info("State: ~p~n~p", [X, Data]), timer:sleep(10), sync_state(State)
     end.
 
 
@@ -102,7 +102,7 @@ init([]) ->
 
 %% for debugging
 handle_sync_event(give_me_state_name, _From, StateName, StateData) ->
-    {reply, StateName, StateName, StateData}.
+    {reply, {StateName, StateData}, StateName, StateData}.
 handle_event(event, statename, State) ->
     {stop, undefined, State}.
 handle_info(info, statename, State) ->
