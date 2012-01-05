@@ -233,10 +233,24 @@ delete_route(
         #route{resource=Res, nodeid=NodeId},
         #state{table=RouteTable0}=State) ->
     % Get routes for resource:
-    Routes1 = proplists:get_value(Res, RouteTable0),
-    % @todo
-
-    ok.
+    Routes0 = proplists:get_value(Res, RouteTable0),
+    % Find route to be deleted:
+    ExistingRoute = find_route([NodeId], Routes0),
+    % Delete it:
+    Routes1 = lists:delete(ExistingRoute, Routes0),
+    % Find a new optimal:
+    Routes2 = update_optimal(Routes1),
+    % Update state:
+    RouteTable1 =
+        case Routes2 of
+            [] ->
+                proplists:delete(Res, RouteTable0);
+            _ ->
+                [{Res, Routes2} |proplists:delete(Res, RouteTable0)]
+        end,
+    State1 = State#state{table=RouteTable1},
+    % Send update msg to neightbours:
+    State2 = send_msg_after_update(Res, Routes2, Routes0, State1).
 
 %% @doc Changes route table when route change event arrives.
 -spec change_route(#route{}, #state{}) -> #state{}.
@@ -512,5 +526,8 @@ change_route_test() ->
         [],
         proplists:get_value({a, 1}, (change_route(Route1, State0))#state.table)
     ).
+
+delete_route_test() ->
+    ok.
 
 -endif.
