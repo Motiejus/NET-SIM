@@ -52,13 +52,14 @@ init([Nodeid, Price, MaxLatency]) ->
 
 handle_cast({update_complete, NodeId},
     State=#state{pending_responses=Resp}) ->
-    EmptyQueue = lists:all(fun(Q) -> length(Q) == 0 end, State#state.queues),
+    EmptyQueue = lists:all(fun({_, Q}) -> length(Q) == 0 end, State#state.queues),
     if
         Resp == [NodeId] -> % Last reply, we can send clock "done"
             netsim_clock_serv:node_work_complete(NodeId, EmptyQueue);
         true -> ok
     end,
-    State#state{pending_responses=lists:delete(NodeId, Resp)};
+
+    {noreply, State#state{pending_responses=lists:delete(NodeId, Resp)}};
 
 handle_cast({route, #route{action=Action}=RouteMsg, ReportCompleteTo},
         #state{nodeid=NodeId}=State) ->
@@ -81,7 +82,7 @@ handle_cast({tick, Tick},
         _ -> throw({inconsistent_tick, Tick1, Tick})
     end,
 
-    S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == 1],
+    S = [{To, R} || {{_, To, _, _}, MT} <- Queues, {R, T} <- MT, T == 1],
     % S :: [{To :: nodeid(), Route :: #route{}}]
 
     Pending = [To || {To, _Route} <- S],
@@ -281,21 +282,23 @@ delete_route(
 %% @doc Changes route table when route change event arrives.
 -spec change_route(#route{}, #state{}) -> #state{}.
 change_route(
-        #route{route=NewRoute, resource=Res},
+        #route{route=NewRoute0, resource=Res},
         #state{table=RouteTable0, nodeid=NodeId, max_latency=MaxL}=State) ->
+    {Path0, Cost0} = NewRoute0,
+    NewRoute1 = {Path0 ++ [NodeId], Cost0},
     Routes0 = proplists:get_value(Res, RouteTable0, []),
     % Get route (ExistingRoute) that will be affected by NewRoute:
-    ExistingRoute = find_route(NewRoute, Routes0),
+    ExistingRoute = find_route(NewRoute0, Routes0),
     % Delete ExistingRoute from routes table:
     Routes1 = lists:delete(ExistingRoute, Routes0),
     % Check, if new route max_latency =< global max_latency and new route
     % doesn't have a loop:
-    {_, {Latency, _}} = NewRoute,
+    {_, {Latency, _}} = NewRoute1,
     Routes2 = 
-        case ((not has_loop(NodeId, NewRoute)) and (Latency =< MaxL)) of
+        case ((not has_loop(NodeId, NewRoute0)) and (Latency =< MaxL)) of
             true ->
                 % Find a new optimal route:
-                update_optimal([NewRoute | Routes1]);
+                update_optimal([NewRoute1 | Routes1]);
             false ->
                 Routes1
         end,
@@ -532,19 +535,19 @@ change_route_test() ->
             {{d, b, [{latency, 11}, {bandwidth, 64}], {0, 0}}, []}
         ],
         table = [
-            {{a, 1}, [{[a, e, f], {20, 3}}]}
+            {{a, 1}, [{[a, e, f, d], {20, 3}}]}
         ]
     },
 
     ?assertMatch(
-        [{[a, b, c], _}, {[a, e, f], _}],
+        [{[a, b, c, d], _}, {[a, e, f, d], _}],
         proplists:get_value({a, 1}, (change_route(Route0, State0))#state.table)
     ),
 
     % Delete existing route case.
     Route1 = #route{
         resource = {a, 1},
-        route = {[a, n , e], {44, 1}},
+        route = {[a, n, f], {44, 1}},
         action = change
     },
 
@@ -637,6 +640,11 @@ tick_test() ->
     ?assertMatch(
         [{{a, b, _, {416, 0}}, []}], 
         (state(a))#state.queues
+    ),
+
+    ?assertEqual(
+        [{{a, 1}, [{[a, b], {15, 10}}]}],
+        (state(b))#state.table
     ),
 
     ok = meck:unload(netsim_clock_serv).
