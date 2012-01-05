@@ -2,7 +2,7 @@
 
 -record('event', {
         time :: netsim_types:latency(),
-        action :: add_resource | del_resource,
+        action :: netsim_types:action(),
         resource :: netsim_types:resource()
     }).
 
