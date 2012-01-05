@@ -31,7 +31,6 @@ send_event(Event=#event{resource={NodeId, _}}) ->
 %% After locally work is done, cast {update_complete, NodeId} to ReplySuccessTo
 %%
 send_route(NodeId, #route{}=Route, ReplySuccessTo) ->
-    lager:info("Sending route ~p", [Route]),
     gen_server:cast(NodeId, {route, Route, ReplySuccessTo}).
 
 %% @doc Sends tick to a node.
@@ -69,35 +68,53 @@ handle_cast({route, #route{action=Action}=RouteMsg, ReportCompleteTo},
             del -> delete_route(RouteMsg, State)
         end,
 
-    lager:info("Casting update_complete"),
     gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
     {noreply, State1};
 
-handle_cast({tick, Tick}, State=#state{
-        queues=Queues, tick=Tick1, nodeid=NodeId}) ->
+handle_cast(stop, State) ->
+    {stop, normal, State};
+
+handle_cast({tick, Tick},
+        State=#state{nodeid=NodeId,queues=Queues, tick=Tick1}) ->
     case (Tick1+1) of
         Tick -> ok;
         _ -> throw({inconsistent_tick, Tick1, Tick})
     end,
-    S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == 0],
+
+    S = [{To, R} || {{_, To, _}, MT} <- Queues, {R, T} <- MT, T == 1],
     % S :: [{To :: nodeid(), Route :: #route{}}]
 
     Pending = [To || {To, _Route} <- S],
+
     case Pending of
         [] -> netsim_clock_serv:node_work_complete(NodeId, true);
         _ -> ok
     end,
     %lager:info("Tick: ~p, Send queue to: ~p, pending: ~p", [Tick, S, Pending]),
-
     [send_route(To, Route, self()) || {To, Route} <- S],
 
-    % @todo Update outgoing queue sent_size
-
-    % Update every queue head: decrease Tick
+    % Update every queue head: decrease Tick and increase TX if msg is sent
     % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
-    NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
+    NewQ =
+        lists:map(
+            fun ({{From, To, Metrics, {TX, RX}}, Q}) ->
+                case Q of
+                    % TimeToSend will be == 0 : delete message, inc TX
+                    [{M, 1}|T] ->
+                        {{From, To, Metrics, {TX+sizeof(M), RX}}, T};
+                    % TimeToSend /= : dec TimeToSend
+                    [{M, Time}|T] ->
+                        {{From, To, Metrics, {TX, RX}}, [{M, Time-1}|T]};
+                    _ ->
+                        Q
+                end
+            end,
+            Queues
+        ),
+        
+    %NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
-    {noreply, State#state{pending_responses=Pending, queues=NewQ, tick=Tick1+1}};
+    {noreply, State#state{tick=Tick, pending_responses=Pending, queues=NewQ}};
 
 handle_cast(stop, State) ->
     {stop, normal, State};
@@ -151,11 +168,13 @@ handle_call({event, #event{action=add_resource, resource=R}}, _From,
 
     % Add new route into table:
     Cost = {0, 0},
-    Route = {R, [{[NodeId], Cost}]},
-    RouteTable1 = [Route|RouteTable0],
+    Route = {[NodeId], Cost},
+    RouteEntry = {R, [Route]},
+    RouteTable1 = [RouteEntry | RouteTable0],
 
     % Propogate the new resource to neighbours:
-    Msg = #route{nodeid=NodeId, route=Route, resource=R, action=add, time=Tick},
+    Msg = #route{nodeid=NodeId, route=Route, resource=R, action=change,
+        time=Tick},
     State1 = send_route_msg(Msg, State#state{table=RouteTable1}),
 
     {reply, ok, State1};
@@ -591,5 +610,38 @@ delete_route_test() ->
         [{{d, b, _, _}, [{#route{action=del, nodeid=d}, _}]}],
         (delete_route(Route1, State1))#state.queues
     ).
+
+tick_test() ->
+    % Setup:
+    stop(a), stop(b),
+    timer:sleep(10),
+
+    {ok, _} = start_link(a, 10, 200),
+    start_link(b, 11, 200),
+    meck:new(netsim_clock_serv, [no_link]),
+    meck:expect(netsim_clock_serv, node_work_complete, 2, ok),
+
+    add_link(a, {b, a, [{latency, 15}, {bandwidth, 64}]}),
+    add_link(b, {b, a, [{latency, 15}, {bandwidth, 64}]}),
+
+    ?assertMatch(
+        [{_, []}],
+        (state(a))#state.queues
+    ),
+
+    % Add resource {a, 1} to 'a' node:
+    send_event(#event{resource={a, 1}, action=add_resource, time=0}),
+    ?assertMatch(
+        [{{a, b, _, _}, [{#route{action=change, route={[a], _}}, _}]}],
+        (state(a))#state.queues
+    ),
+    % Msg time to send = 21, so we need to do 21 ticks: 
+    [tick(a, Tick) || Tick <- lists:seq(1, 21)],
+    ?assertMatch(
+        [{{a, b, _, {416, 0}}, []}], 
+        (state(a))#state.queues
+    ),
+
+    ok = meck:unload(netsim_clock_serv).
 
 -endif.
