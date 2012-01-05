@@ -77,7 +77,7 @@ handle_cast(stop, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_call({tick, Tick}, _, #state{queues=Queues, tick=Tick1}=S) ->
+handle_call({tick, Tick}, _, State=#state{queues=Queues, tick=Tick1}) ->
     case (Tick1+1) of
         Tick -> ok;
         _ -> throw({inconsistent_tick, Tick1, Tick})
@@ -93,7 +93,7 @@ handle_call({tick, Tick}, _, #state{queues=Queues, tick=Tick1}=S) ->
     % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
     NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
-    {noreply, S#state{pending_responses=Pending, queues=NewQ}};
+    {noreply, State#state{pending_responses=Pending, queues=NewQ}};
 
 %% @doc Inserts link (into queue).
 handle_call({add_link, {From0, To0, Metrics}}, _From,
