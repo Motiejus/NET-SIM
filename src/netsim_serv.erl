@@ -235,7 +235,7 @@ delete_route(
     % Get routes for resource:
     Routes0 = proplists:get_value(Res, RouteTable0),
     % Find route to be deleted:
-    ExistingRoute = find_route([NodeId], Routes0),
+    ExistingRoute = find_route({[NodeId], ok}, Routes0),
     % Delete it:
     Routes1 = lists:delete(ExistingRoute, Routes0),
     % Find a new optimal:
@@ -246,11 +246,11 @@ delete_route(
             [] ->
                 proplists:delete(Res, RouteTable0);
             _ ->
-                [{Res, Routes2} |proplists:delete(Res, RouteTable0)]
+                [{Res, Routes2} | proplists:delete(Res, RouteTable0)]
         end,
     State1 = State#state{table=RouteTable1},
     % Send update msg to neightbours:
-    State2 = send_msg_after_update(Res, Routes2, Routes0, State1).
+    send_msg_after_update(Res, Routes2, Routes0, State1).
 
 %% @doc Changes route table when route change event arrives.
 -spec change_route(#route{}, #state{}) -> #state{}.
@@ -277,7 +277,7 @@ change_route(
     RouteTable1 = [{Res, Routes2} | proplists:delete(Res, RouteTable0)],
     State1 = State#state{table=RouteTable1},
     % Send route update messages to neighbours:
-    State2 = send_msg_after_update(Res, Routes2, Routes0, State1).
+    send_msg_after_update(Res, Routes2, Routes0, State1).
 
 %% @doc Sorts routes in a way that the best route is head of the list.
 -spec update_optimal([netsim_types:route()]) -> [netsim_types:route()].
@@ -297,7 +297,7 @@ send_msg_after_update(R, [NewRoute|_], [], State) ->
     % Route for a new resource is added:
     send_route_msg(#route{resource=R, route=NewRoute, action=change}, State);
 
-send_msg_after_update(R, [], [OldRoute|_], #state{nodeid=Id}=State) ->
+send_msg_after_update(R, [], [_OldRoute|_], #state{nodeid=Id}=State) ->
     % Route is deleted:
     send_route_msg(#route{resource=R, nodeid=Id, action=del}, State);
 
@@ -528,6 +528,50 @@ change_route_test() ->
     ).
 
 delete_route_test() ->
-    ok.
+    % Choose new best route after deletion.
+    Route0 = #route{
+        resource = {a, 1},
+        nodeid = b,
+        action = del
+    },
+    State0 = #state{
+        price = 10,
+        max_latency = 20,
+        nodeid = d,
+        queues = [
+            {{d, b, [{latency, 11}, {bandwidth, 64}]}, []}
+        ],
+        table = [
+            {{a, 1}, [{[a, b, d], {20, 3}}, {[a, e, d], {11, 10}}]}
+        ]
+    },
+
+    ?assertMatch(
+        [{[a, e, d], _}],
+        proplists:get_value({a, 1}, (delete_route(Route0, State0))#state.table)
+    ),
+
+    % Delete route table entry.
+    Route1 = #route{
+        resource = {a, 1},
+        nodeid = e,
+        action = del
+    },
+    State1 = #state{
+        price = 10,
+        max_latency = 20,
+        nodeid = d,
+        queues = [
+            {{d, b, [{latency, 11}, {bandwidth, 64}]}, []}
+        ],
+        table = [
+            {{a, 1}, [{[a, e, d], {11, 10}}]}
+        ]
+    },
+
+    ?assertMatch(
+        undefined,
+        proplists:get_value({a, 1}, (delete_route(Route1, State1))#state.table)
+    ).
 
 -endif.
