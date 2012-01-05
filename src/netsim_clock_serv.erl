@@ -46,7 +46,6 @@ sync_state(State) ->
 %% WorkToDo defines whether node has some remaining work to be done
 -spec node_work_complete(netsim_types:nodeid(), boolean()) -> ok.
 node_work_complete(NodeId, WorkToDo) ->
-    lager:info("Work complete ~p", [NodeId]),
     gen_fsm:send_event(?NETSIM_CLOCK, {node_ack, NodeId, WorkToDo}).
 
 %% Ticking implementation
@@ -71,7 +70,7 @@ send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
 %% from the nodes. If any ACK says "not done", then update #state.done to false.
 send_tick(timeout, State=#state{time=Time}) ->
     Nodes = netsim_sup:list_nodes(),
-    lager:info("Sending a tick to Nodes: ~p", [Nodes]),
+    lager:info("Sending a tick to Nodes: ~p, tick: ~p", [Nodes, Time]),
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack,
         State#state{time=Time+1, nodes=Nodes, done=true}}.
@@ -80,6 +79,7 @@ node_ack({node_ack, N, true}, State=#state{nodes=[N], done=true, data=[]}) ->
     {next_state, finalize, State#state{nodes=[]}};
 
 node_ack({node_ack, N, _}, State=#state{nodes=[N]}) ->
+    lager:info("Last node acked: ~p", [N]),
     {next_state, send_tick, State#state{nodes=[]}, 0};
 
 node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2}) ->

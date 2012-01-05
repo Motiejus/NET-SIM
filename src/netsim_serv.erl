@@ -87,7 +87,7 @@ handle_cast({tick, Tick}, State=#state{
         [] -> netsim_clock_serv:node_work_complete(NodeId, true);
         _ -> ok
     end,
-    lager:info("Tick: ~p, Send queue to: ~p, pending: ~p", [Tick, S, Pending]),
+    %lager:info("Tick: ~p, Send queue to: ~p, pending: ~p", [Tick, S, Pending]),
 
     [send_route(To, Route, self()) || {To, Route} <- S],
 
@@ -97,7 +97,7 @@ handle_cast({tick, Tick}, State=#state{
     % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
     NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
-    {noreply, State#state{pending_responses=Pending, queues=NewQ, tick=Tick+1}};
+    {noreply, State#state{pending_responses=Pending, queues=NewQ, tick=Tick1+1}};
 
 handle_cast(stop, State) ->
     {stop, normal, State};
