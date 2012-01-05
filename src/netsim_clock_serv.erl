@@ -18,7 +18,7 @@
         time = 0 :: pos_integer(),
         data = [] :: [#'event'{}],
         nodes = [] :: [atom()], % Atoms of nodes that did not send ack
-        work_left = false % Whether all nodes have work to do left
+        done = false % Whether all nodes are done with their work
     }
 ).
 
@@ -55,23 +55,26 @@ send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
     {next_state, send_tick, S#state{data=Evs}, 0};
 
 %% @doc Just a tick for every node
+%%
+%% Intially we set #state.done = true, and update this value when we get ack's
+%% from the nodes. If any ACK says "not done", then update #state.done to false.
 send_tick(timeout, State=#state{time=Time}) ->
     Nodes = netsim_sup:list_nodes(),
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack,
-        State#state{time=Time+1, nodes=Nodes, work_left=false}}.
+        State#state{time=Time+1, nodes=Nodes, done=true}}.
 
-node_ack({node_ack,N,false}, State=#state{nodes=[N],work_left=false,data=[]}) ->
+node_ack({node_ack, N, true}, State=#state{nodes=[N], done=true, data=[]}) ->
     {next_state, finalize, State#state{nodes=[]}};
 
 node_ack({node_ack, N, _}, State=#state{nodes=[N]}) ->
     {next_state, send_tick, State#state{nodes=[]}, 0};
 
-node_ack({node_ack, N, W1}, State=#state{nodes=Nodes, work_left=W2}) ->
+node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2}) ->
     case lists:member(N, Nodes) of
         true ->
             {next_state, node_ack, State#state{
-                    work_left = W1 or W2,
+                    done = D1 and D2,
                     nodes=lists:delete(N, Nodes)
                 }};
         false ->
@@ -139,16 +142,16 @@ setup() ->
     meck:expect(netsim_serv, send_event, fun(_) -> ok end),
 
     T = ets:new(eunit_state, [set, public]),
-    ets:insert(T, {n1, true}),
+    ets:insert(T, {n1, false}),
 
     meck:expect(netsim_serv, tick,
         fun (n1, _Time) ->
                 Complete = ets:lookup_element(T, n1, 2),
-                ets:insert(T, {n1, false}),
+                ets:insert(T, {n1, true}),
 
                 netsim_clock_serv:node_work_complete(n1, Complete);
             (n2, _Time) ->
-                netsim_clock_serv:node_work_complete(n2, false)
+                netsim_clock_serv:node_work_complete(n2, true)
         end).
 
 cleanup(_) ->
