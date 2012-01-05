@@ -61,16 +61,29 @@ handle_cast({update_complete, NodeId},
 
     {noreply, State#state{pending_responses=lists:delete(NodeId, Resp)}};
 
-handle_cast({route, #route{action=Action}=RouteMsg, ReportCompleteTo},
-        #state{nodeid=NodeId}=State) ->
-    State1 = 
+handle_cast({route, #route{action=Action, nodeid=RemoteNodeId}=RouteMsg,
+    ReportCompleteTo}, #state{nodeid=NodeId, queues=Queues}=State) ->
+
+    % Update RX:
+    Queues1 = lists:map(
+        fun
+            ({{From, To, Metrics, {TX, RX}}, Q}) when To == RemoteNodeId ->
+                {{From, To, Metrics, {TX, RX+sizeof(RouteMsg)}}, Q};
+            (Q) ->
+                Q
+        end,
+        Queues
+    ),
+    State1 = State#state{queues=Queues1},
+
+    State2 = 
         case Action of
-            change -> change_route(RouteMsg, State);
-            del -> delete_route(RouteMsg, State)
+            change -> change_route(RouteMsg, State1);
+            del -> delete_route(RouteMsg, State1)
         end,
 
     gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
-    {noreply, State1};
+    {noreply, State2};
 
 handle_cast(stop, State) ->
     {stop, normal, State};
@@ -645,6 +658,10 @@ tick_test() ->
     ?assertEqual(
         [{{a, 1}, [{[a, b], {15, 10}}]}],
         (state(b))#state.table
+    ),
+    ?assertMatch(
+        [{{b, a, _, {0, 416}}, [_]}],
+        (state(b))#state.queues
     ),
 
     ok = meck:unload(netsim_clock_serv).
