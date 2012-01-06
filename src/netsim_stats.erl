@@ -9,7 +9,7 @@
         handle_info/2, terminate/2]).
 
 %%% API
--export([start_link/0, modify_resource/1,
+-export([start_link/0, modify_resource/1, send_stat/1,
         add_route/2, del_route/2, define_resource/3]).
 
 -record(state, {
@@ -42,6 +42,9 @@ del_route(When, Resource) ->
 define_resource(Resource, NumNodes, Fun) ->
     gen_server:call(?MODULE, {define_resource, Resource, NumNodes, Fun}).
 
+-spec send_stat(#event{}) -> ok.
+send_stat(Event) ->
+    ok.
 
 %% @doc Define resource
 handle_call({define_resource, Res, Upto, Fun}, _, State=#state{}) ->
