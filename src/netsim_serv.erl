@@ -50,12 +50,13 @@ init([Nodeid, Price, MaxLatency]) ->
     {ok, #state{nodeid=Nodeid, price=Price, max_latency=MaxLatency,
             queues=[], table=[]}}.
 
-handle_cast({update_complete, NodeId},
-    State=#state{pending_responses=Resp}) ->
+handle_cast({update_complete, NodeId}, State=#state{pending_responses=Resp,
+        nodeid=Caller}) ->
     EmptyQueue = lists:all(fun({_, Q}) -> length(Q) == 0 end, State#state.queues),
+    %lager:info("Update_complete ~p, pending: ~p, calling by ~p", [NodeId, Resp, W]),
     if
         Resp == [NodeId] -> % Last reply, we can send clock "done"
-            netsim_clock_serv:node_work_complete(NodeId, EmptyQueue);
+            netsim_clock_serv:node_work_complete(Caller, EmptyQueue);
         true -> ok
     end,
 
