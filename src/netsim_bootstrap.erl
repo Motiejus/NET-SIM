@@ -3,11 +3,11 @@
 
 -include("include/netsim.hrl").
 
--export([init/5]).
+-export([init/4]).
 
 %% @doc Reads data from files and creates new nodes setup.
--spec init(list(), list(), list(), list(), #stat{}) -> no_return().
-init(NodesFiles, LinksFile, SimulationFile, LatencyFile, Event) ->
+-spec init(list(), list(), list(), list()) -> no_return().
+init(NodesFiles, LinksFile, SimulationFile, SettingsFile) ->
     % NodeList :: {NodeId, Price}
     {ok, NodesList} = file:consult(NodesFiles),
     % LinksList :: [{From, To, Latency, Bandwith}]
@@ -15,7 +15,7 @@ init(NodesFiles, LinksFile, SimulationFile, LatencyFile, Event) ->
     % SimulationFile :: {Time, Queueid, Resource}
     {ok, SimulationList} = file:consult(SimulationFile),
     % LatencyFile :: MaxLatency
-    {ok, [MaxLatency]} = file:consult(LatencyFile),
+    {ok, Settings} = file:consult(SettingsFile),
 
     % Send SimulationFile to clock_serv
     Rcpt = self(),
@@ -27,6 +27,7 @@ init(NodesFiles, LinksFile, SimulationFile, LatencyFile, Event) ->
     ),
 
     % Start nodes without channels:
+    MaxLatency = proplists:get_value(max_latency, Settings),
     [netsim_sup:add_node(Id, Price, MaxLatency) || {Id, Price} <- NodesList],
 
     % Init channels:
@@ -40,7 +41,9 @@ init(NodesFiles, LinksFile, SimulationFile, LatencyFile, Event) ->
         LinksList
     ),
 
-    netsim_stats:define_event(Event),
+    Res = {NodeId, _} = proplists:get_value(monitor_resource, Settings),
+    netsim_stats:define_event(#stat{action=change, resource=Res, nodeid=NodeId}),
+
     netsim_clock_serv:start(), % Starts ticking
     receive
         done -> application:stop(netsim)

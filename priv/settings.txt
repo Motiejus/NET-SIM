@@ -1,1 +1,2 @@
-20000.
+{max_latency, 20000}.
+{monitor_resource, {kedainiai, 1}}.
