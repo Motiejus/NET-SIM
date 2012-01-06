@@ -3,11 +3,11 @@
 
 -include("include/netsim.hrl").
 
--export([init/4]).
+-export([init/5]).
 
 %% @doc Reads data from files and creates new nodes setup.
--spec init(list(), list(), list(), list()) -> no_return().
-init(NodesFiles, LinksFile, SimulationFile, SettingsFile) ->
+-spec init(list(), list(), list(), list(), list()) -> no_return().
+init(NodesFiles, LinksFile, SimulationFile, SettingsFile, Output) ->
     % NodeList :: {NodeId, Price}
     {ok, NodesList} = file:consult(NodesFiles),
     % LinksList :: [{From, To, Latency, Bandwith}]
@@ -22,7 +22,7 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile) ->
     netsim_clock_serv:initialize(
         {
             SimulationList,
-            fun(_) -> Rcpt ! done end
+            fun(Res) -> Rcpt ! {done, Res} end
         }
     ),
 
@@ -46,5 +46,19 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile) ->
 
     netsim_clock_serv:start(), % Starts ticking
     receive
-        done -> init:stop()
+        {done, TickLog} ->
+            % TickLog :: [{latency(), integer()}]
+            {ok, Dev} = file:open(Output, [write]),
+            TotalNodes = length(NodesList),
+            lists:foldr(
+                fun ({Time, HowMany}, Acc) ->
+                        NewVal = (HowMany + Acc) / TotalNodes * 100,
+                        ok = io:fwrite(Dev, "~p ~.2f~n", [Time, NewVal]),
+                        HowMany + Acc
+                end,
+                0,
+                lists:sublist(TickLog, TotalNodes)
+            ),
+            ok = file:close(Dev),
+            init:stop()
     end.

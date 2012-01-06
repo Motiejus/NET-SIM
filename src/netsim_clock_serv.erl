@@ -100,7 +100,7 @@ node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2, time=T}) ->
     }.
 
 finalize(timeout, State=#state{callback=Callback}) ->
-    Callback(yadda),
+    Callback(netsim_stats:tick_log()),
     {next_state, finalize, State}.
 
 %% gen_fsm callbacks

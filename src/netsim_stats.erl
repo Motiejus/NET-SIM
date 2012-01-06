@@ -5,7 +5,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, send_stat/1, define_event/1, state/0]).
+-export([start_link/0, send_stat/1, define_event/1, state/0, tick_log/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
@@ -36,6 +36,9 @@ define_event(#stat{}=Event) ->
 
 state() ->
     gen_server:call(?MODULE, state).
+
+tick_log() ->
+    proplists:get_value(tick, (state())#state.log).
 
 %% =============================================================================
 
