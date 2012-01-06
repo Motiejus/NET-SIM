@@ -79,11 +79,13 @@ handle_cast({route, #route{action=Action, nodeid=RemoteNodeId}=RouteMsg,
     ),
     State1 = State#state{queues=Queues1},
 
-    State2 = 
-        case Action of
-            change -> change_route(RouteMsg, State1);
-            del -> delete_route(RouteMsg, State1)
-        end,
+    State2 = case Action of
+        change -> change_route(RouteMsg, State1);
+        del -> delete_route(RouteMsg, State1)
+    end,
+
+    lager:info("ReportComplete ~p, reporting to ~p", [NodeId, ReportCompleteTo]),
+
 
     gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
     {noreply, State2};
@@ -92,7 +94,7 @@ handle_cast(stop, State) ->
     {stop, normal, State};
 
 handle_cast({tick, Tick},
-        State=#state{nodeid=NodeId,queues=Queues, tick=Tick1}) ->
+        State=#state{nodeid=NodeId, queues=Queues, tick=Tick1}) ->
     case (Tick1+1) of
         Tick -> ok;
         _ -> throw({inconsistent_tick, Tick1, Tick, State})
@@ -110,8 +112,9 @@ handle_cast({tick, Tick},
         [] -> netsim_clock_serv:node_work_complete(NodeId, true);
         _ -> ok
     end,
-    %lager:info("Tick: ~p, Send queue to: ~p, pending: ~p", [Tick, S, Pending]),
-    [send_route(To, Route, self()) || {To, Route} <- S],
+    lager:info("Tick: ~p, Node: ~p, Send queue to: ~p, pending: ~p",
+        [Tick, NodeId, S, Pending]),
+    [send_route(To, Route, NodeId) || {To, Route} <- S],
 
     % Update every queue head: decrease Tick and increase TX if msg is sent
     % msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
@@ -132,7 +135,7 @@ handle_cast({tick, Tick},
             Queues
         ),
 
-    lager:info("Finished tick: from ~p at ~p, pending: ~p ~n", [NodeId, Tick, Pending]),
+    lager:info("Finished tick: from ~p at ~p, pending: ~p", [NodeId, Tick, Pending]),
         
     %NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
