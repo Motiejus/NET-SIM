@@ -13,3 +13,12 @@
     route :: [netsim_types:route()],
     resource :: netsim_types:resource()
 }).
+
+-record(stat, {
+        tick :: netsim_types:latency(),
+        action :: add | del | stop,
+        resource :: netsim_types:resource(), % for which resource statistics
+        nodeid :: netsim_types:nodeid(), % who sent this data
+        tx :: bandwidth(), % bits
+        rx :: bandwidth()
+    }).
