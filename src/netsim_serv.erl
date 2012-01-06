@@ -7,7 +7,8 @@
 
 -behaviour(gen_server).
 
--export([start_link/3, add_link/2, send_event/1, tick/2, state/1, stop/1]).
+-export([start_link/3, add_link/2, send_event/1, tick/2, finalize/1,
+        state/1, stop/1]).
 
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
@@ -49,6 +50,9 @@ send_route(NodeId, #route{}=Route, ReplySuccessTo) ->
 tick(NodeId, TickNr) ->
     gen_server:cast(NodeId, {tick, TickNr}).
 
+finalize(NodeId) ->
+    gen_server:cast(NodeId, finalize).
+
 state(NodeId) ->
     gen_server:call(NodeId, state).
 
@@ -71,10 +75,16 @@ handle_cast({update_complete, NodeId}, State=#state{pending_responses=Resp,
 
     {noreply, State#state{pending_responses=lists:delete(NodeId, Resp)}};
 
-handle_cast({route, #route{action=Action, nodeid=RemoteNodeId}=RouteMsg,
-    ReportCompleteTo}, #state{nodeid=NodeId, queues=Queues}=State) ->
+handle_cast(
+    {route, #route{action=Action, resource=Res, nodeid=RemoteNodeId}=RouteMsg,
+    ReportCompleteTo}, #state{nodeid=NodeId, tick=Tick, queues=Queues}=State) ->
 
     lager:info("Route event: NodeID: ~p Route: ~p~n", [NodeId, RouteMsg]),
+
+    % Send stats event:
+    ok = netsim_stats:send_stat(
+        #state{nodeid=NodeId, tick=Tick, resource=Res, action=Action}
+    ),
 
     % Update RX:
     Queues1 = lists:map(
@@ -147,6 +157,12 @@ handle_cast({tick, Tick},
         ),
 
     {noreply, State#state{tick=Tick, pending_responses=Pending, queues=NewQ}};
+
+%% @doc Send traffic info to stats.
+handle_cast(finalize, State) ->
+    %% @todo
+
+    {noreply, State};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.

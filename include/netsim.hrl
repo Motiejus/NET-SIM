@@ -16,9 +16,9 @@
 
 -record(stat, {
         tick :: netsim_types:latency(),
-        action :: add | del | stop,
+        action :: change | del | stats | stop,
         resource :: netsim_types:resource(), % for which resource statistics
         nodeid :: netsim_types:nodeid(), % who sent this data
-        tx :: netsim_types:bits(), % bits
+        tx :: netsim_types:bits(),
         rx :: netsim_types:bits()
     }).
