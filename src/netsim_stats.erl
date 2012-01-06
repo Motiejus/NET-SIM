@@ -1,157 +1,127 @@
 -module(netsim_stats).
+
 -include("include/netsim.hrl").
--include("include/log_utils.hrl").
 
 -behaviour(gen_server).
 
-%%% gen_server callbacks
+%% API
+-export([start_link/0, send_stat/1, define_event/1]).
+
+%% gen_server callbacks
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
 
-%%% API
--export([start_link/0, modify_resource/1, send_stat/1,
-        add_route/2, del_route/2, define_resource/3]).
-
 -record(state, {
-        res = update_this :: netsim_types:resource(),
-        upto :: pos_integer(),
-        callback :: function(),
-        numnodes = [{add, []}, {del, []}] %:: [{add,
-%                [{netsim_types:latency(), pos_integer()}]
-%            }, {del, 
-%                [{netsim_types:latency(), pos_integer()}]
-%            }]
-    }).
+    event :: #stat{},
+    log  = [] :: list(),
+    nodes = []:: [netsim_types:nodeid()] % list of nodes for waiting events from
+    %% nodes
+}).
 
+%% =============================================================================
+
+%% @doc Start stats process.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-%% @doc API
-modify_resource(Event=#event{}) ->
-    gen_server:call(?MODULE, {modify_resource, Event}).
-
-%% @doc API for adding and deleting route
--spec add_route(When :: netsim_types:latency(), netsim_types:resource()) -> ok.
-add_route(When, Resource) ->
-    gen_server:call(?MODULE, {add_del_route, add, When, Resource}).
--spec del_route(When :: netsim_types:latency(), netsim_types:resource()) -> ok.
-del_route(When, Resource) ->
-    gen_server:call(?MODULE, {add_del_route, del, When, Resource}).
-
--spec define_resource(netsim_types:resource(), integer(), function()) -> ok.
-define_resource(Resource, NumNodes, Fun) ->
-    gen_server:call(?MODULE, {define_resource, Resource, NumNodes, Fun}).
-
--spec send_stat(#event{}) -> ok.
+%% @doc Sends stats event.
+-spec send_stat(#stat{}) -> ok.
 send_stat(Event) ->
-    ok.
+    gen_server:call(?MODULE, {event, Event}).
 
-%% @doc Define resource
-handle_call({define_resource, Res, Upto, Fun}, _, State=#state{}) ->
-    {reply, ok, State#state{res=Res, upto=Upto, callback=Fun}};
+%% @doc Defines when to log time (i.e. what events should be received from all
+%% nodes):
+define_event(#stat{}=Event) ->
+    gen_server:call(?MODULE, {define, Event}).
 
-%% @doc Add or delete node
-handle_call({modify_resource, _E}, _, State=#state{res=update_this}) ->
-    {reply, tell_resource_before_collecting, State};
+state() ->
+    gen_server:call(?MODULE, state).
 
-handle_call({modify_resource, #event{time=T, action=A, resource=Res}},
-    _From, State=#state{res=Res, numnodes=NumNodes}) ->
-    {reply, ok, State#state{numnodes=set_value(A, [{T, 0}], NumNodes)}};
-
-handle_call({modify_resource, #event{}}, _From, State=#state{}) ->
-    {reply, ok, State};
-
-%% @doc Add or delete route to Resource, update statistics
-%-spec handle_call({add_del_route, add | del, netsim_types:latency(),
-%        netsim_types:resource()}, term(), #state{}} -> {reply, ok, #state{}}.
-handle_call({add_del_route, A, T, Res}, _From,
-    State=#state{res=Res, numnodes=NumNodes}) ->
-
-    NewAcc = case proplists:get_value(A, NumNodes) of
-        [{T, HowMuchSoFar}|Old] -> [{T, HowMuchSoFar+1}|Old];
-        X = [{_, HowMuchSoFar}|_] -> [{T, HowMuchSoFar+1}|X]
-    end,
-
-    {_, LastEntered} = hd(NewAcc),
-    UpTo = State#state.upto,
-    case LastEntered of
-         UpTo ->
-             (State#state.callback)(NewAcc);
-         _ when LastEntered > State#state.upto ->
-            lager:error("Too many nodes: ~p", [NewAcc]);
-        _ -> ok
-    end,
-    {reply, ok, State#state{numnodes=set_value(A, NewAcc, NumNodes)}};
-
-handle_call({add_del_route, _, _, _}, _From, State) ->
-    {reply, ok, State}.
+%% =============================================================================
 
 init([]) ->
     {ok, #state{}}.
-handle_cast(undefined, state) ->
-    undefined.
-terminate(normal, _State) ->
-    ok.
-code_change(_, _, State) ->
-    {ok, State}.
+
+handle_call(state, _, State) ->
+    {reply, State, State};
+
+%% @doc Define final event and start logging.
+handle_call({define, #stat{}=Event}, _From, State) ->
+    State1 = State#state{ 
+        nodes = netsim_sup:list_nodes(),
+        event = Event
+    },
+
+    {reply, ok, State1};
+
+%% @doc Stop event.
+handle_call({event, #stat{action=stop, tick=Tick}=Ev}, _, State) -> 
+    lager:info("~p: converged.~n", [Tick]),
+
+    {reply, ok, State#state{log=[Ev|State#state.log]}};
+
+%% @doc Receive last missing and matching event.
+handle_call(
+    {event, #stat{nodeid=NodeId, action=Action, resource=Res, tick=Tick}=Ev}, _,
+    #state{nodes=[NodeId], event=#stat{action=Action, resource=Res}}=State) ->
+    lager:info("~p: last event: ~p", [Tick, Ev]),
+
+    {reply, ok, State#state{nodes=[], log=[Ev|State#state.log]}};
+
+%% @doc Receive matching event.
+handle_call({event, #stat{nodeid=NodeId, action=Action, resource=Res}}, _,
+        #state{nodes=Nodes, event=#stat{action=Action, resource=Res}}=State) ->
+    {reply, ok, State#state{nodes = lists:delete(NodeId, Nodes)}};
+
+handle_call({event, _Ev}, _, State) ->
+    {reply, ok, State}.
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
 handle_info(_Msg, State) ->
     {noreply, State}.
 
-set_value(K, V, Proplist) ->
-    [{K, V}|proplists:delete(K, Proplist)].
+terminate(normal, _State) ->
+    ok.
 
+code_change(_, _, State) ->
+    {ok, State}.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
-stats_test_() ->
-    {foreach,
-        fun setup/0,
-        fun cleanup/1,
-        [
-            fun test_add_resource_before/0,
-            fun test_functional/0
-        ]
-    }.
+workflow_test() ->
+    % Setup:
+    meck:new(netsim_sup, [no_link]),
+    meck:expect(netsim_sup, list_nodes, 0, [a, b]), 
 
-test_add_resource_before() ->
-    ?assertEqual(
-        tell_resource_before_collecting,
-        modify_resource(#event{resource=x})
-    ).
+    {ok, _} = start_link(),
+    define_event(#stat{action=del, resource={a,1}}),
+    ?assertMatch(
+        #state{
+            nodes = [a, b],
+            event = #stat{action=del, resource={a,1}}
+        },
+        state()
+    ),
 
-test_functional() ->
-    Rcpt = self(),
-    define_resource({a,1}, 5, fun(Arr) -> Rcpt ! Arr end), % 5 nodes in the graph
-    modify_resource(#event{time=3, action=add, resource={a,1}}),
-    add_route(3, {a,1}),
-    add_route(5, {a,1}),
-    add_route(5, {a,1}),
-    add_route(6, {a,1}),
-    add_route(7, {a,1}),
-    ?assertEqual([{7,5},{6,4},{5,3},{3,1}],
-        receive A -> A end),
-    modify_resource(#event{time=20, action=del, resource={a,1}}),
-    del_route(21, {a,1}),
-    del_route(21, {b,2}), % garbage
-    del_route(22, {a,1}),
-    del_route(23, {a,1}),
-    del_route(30, {a,1}),
-    del_route(29, {c,2}), % garbage
-    del_route(30, {a,1}),
-    ?assertEqual([{30,5}, {23,3}, {22,2}, {21,1}, {20,0}],
-        receive A -> A end).
+    ok = send_stat(#stat{action=del, resource={x,2}}),
+    ok = send_stat(#stat{action=del, resource={a,1}, nodeid=b}),
+    ok = send_stat(#stat{action=del, resource={a,1}, nodeid=a, tick=69}),
 
+    ?assertMatch(
+        [#stat{action=del, resource={a, 1}, nodeid=a, tick=69}],
+        (state())#state.log
+    ),
 
-setup() ->
-    ?mute_log(),
-    ok = application:start(lager),
-    ?unmute_log(),
-    start_link().
+    ok = send_stat(#stat{action=stop, tick=71}),
+    ?assertMatch(
+        [_, _],
+        (state())#state.log
+    ),
 
-cleanup(_) ->
-    ?mute_log(),
-    application:stop(lager),
-    ?unmute_log().
+    % Cleanup:
+    meck:unload(netsim_sup).
 
 -endif.
