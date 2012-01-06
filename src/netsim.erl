@@ -9,7 +9,14 @@
 start_app() ->
     ok = application:start(lager),
     ok = application:start(netsim),
-    netsim_bootstrap:init().
+
+    % Test data:
+    netsim_bootstrap:init(
+        filename:join(["priv", "nodelist.txt"]),
+        filename:join(["priv", "channels.txt"]),
+        filename:join(["priv", "simulation.txt"]),
+        filename:join(["priv", "max_latency.txt"])
+    ).
 
 start(_, _) ->
     {ok, _Pid} = netsim_sup:start_link().
