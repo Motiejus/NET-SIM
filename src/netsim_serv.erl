@@ -74,7 +74,7 @@ handle_cast({update_complete, NodeId}, State=#state{pending_responses=Resp,
 handle_cast({route, #route{action=Action, nodeid=RemoteNodeId}=RouteMsg,
     ReportCompleteTo}, #state{nodeid=NodeId, queues=Queues}=State) ->
 
-    lager:info("Route event: NodeID: ~p Route: ~p~n", [NodeId, RouteMsg]),
+    %lager:info("Route event: NodeID: ~p Route: ~p~n", [NodeId, RouteMsg]),
 
     % Update RX:
     Queues1 = lists:map(
@@ -212,7 +212,7 @@ handle_call({event, #event{action=add, resource=R}}, _From,
 %% @doc Delete resource.
 handle_call({event, #event{action=del, resource=R}}, _From,
         #state{table=RouteTable0, tick=Tick, nodeid=NodeId}=State) ->
-    lager:info("Del resource: ~p~n", [State]),
+    %lager:info("Del resource: ~p~n", [State]),
     % Find route that is affected by del resource id and
     % have to be deleted:
     Route =

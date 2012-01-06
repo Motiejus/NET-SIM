@@ -60,7 +60,7 @@ initialize({Data, Callback}, State=#state{}) ->
 %% That are supposed to be flushed during this tick
 -spec send_tick(tick, #state{}) -> {next_state, send_tick, #state{}, 0}.
 send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
-    lager:info("Sending event: ~p~p", [E, {time, W}]),
+    %lager:info("Sending event: ~p~p", [E, {time, W}]),
     netsim_serv:send_event(E),
     %{next_state, send_tick, S#state{data=Evs}, 0};
     send_tick(timeout, S#state{data=Evs});
@@ -71,20 +71,20 @@ send_tick(timeout, S=#state{time=W, data=[E=#event{time=T}|Evs]}) when W == T ->
 %% from the nodes. If any ACK says "not done", then update #state.done to false.
 send_tick(timeout, State=#state{time=Time}) ->
     Nodes = netsim_sup:list_nodes(),
-    lager:info("Sending a tick to Nodes: ~p, tick: ~p", [Nodes, Time]),
+    %lager:info("Sending a tick to Nodes: ~p, tick: ~p", [Nodes, Time]),
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack, State#state{nodes=Nodes, done=true}}.
 
 node_ack({node_ack, N, true}, State=#state{nodes=[N], done=true, data=[]}) ->
-    lager:info("Final deleted node ~p", [N]),
+    %lager:info("Final deleted node ~p", [N]),
     {next_state, finalize, State#state{nodes=[]}, 0};
 
 node_ack({node_ack, N, _}, State=#state{nodes=[N], time=T}) ->
-    lager:info("Got answer from last node ~p, time: ~p", [N, T]),
+    %lager:info("Got answer from last node ~p, time: ~p", [N, T]),
     {next_state, send_tick, State#state{nodes=[], time=T+1}, 0};
 
 node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2, time=T}) ->
-    lager:info("Got answer from node ~p, time: ~p", [N, T]),
+    %lager:info("Got answer from node ~p, time: ~p", [N, T]),
     {next_state, node_ack, State#state{
             done = D1 and D2,
             nodes=lists:delete(N, Nodes)
@@ -136,7 +136,7 @@ single_tick() ->
     receive
         A -> A
     end,
-    lager:info("Received ~p", [A]),
+    %lager:info("Received ~p", [A]),
     
     % @todo Replace with a fully deterministic thing
     % Ensure all events were sent to the nodes
