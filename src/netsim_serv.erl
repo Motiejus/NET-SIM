@@ -51,7 +51,7 @@ tick(NodeId, TickNr) ->
     gen_server:cast(NodeId, {tick, TickNr}).
 
 finalize(NodeId) ->
-    gen_server:cast(NodeId, finalize).
+    gen_server:call(NodeId, finalize).
 
 state(NodeId) ->
     gen_server:call(NodeId, state).
@@ -160,22 +160,6 @@ handle_cast({tick, Tick},
 
     {noreply, State#state{tick=Tick, pending_responses=Pending, queues=NewQ}};
 
-%% @doc Send traffic info to stats.
-handle_cast(finalize, #state{tick=Tick, nodeid=NodeId, queues=Queues}=State) ->
-    {TX1, RX1} = lists:foldl(
-        fun ({{_, _, _, {TX0, RX0}}, _}, {TX, RX}) ->
-            {TX+TX0, RX+RX0}
-        end,
-        {0, 0},
-        Queues
-    ),
-
-    ok = netsim_stats:send_stat(
-        #stat{nodeid=NodeId, tick=Tick, action=stats, tx=TX1, rx=RX1}
-    ),
-
-    {noreply, State};
-
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -211,6 +195,24 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
         ) ++ [{Link, []}],
 
     {reply, ok, State#state{queues=Queues1}};
+
+
+%% @doc Send traffic info to stats.
+handle_call(finalize, _, #state{tick=Tick, nodeid=NodeId, queues=Queues}=State) ->
+    {TX1, RX1} = lists:foldl(
+        fun ({{_, _, _, {TX0, RX0}}, _}, {TX, RX}) ->
+            {TX+TX0, RX+RX0}
+        end,
+        {0, 0},
+        Queues
+    ),
+
+    %lager:info("~p sending stats", [NodeId]),
+    ok = netsim_stats:send_stat(
+        #stat{nodeid=NodeId, tick=Tick, action=stats, tx=TX1, rx=RX1}
+    ),
+
+    {reply, ok, State};
 
 %% @doc Add new resource.
 handle_call({event, #event{action=add, resource=R}}, _From,
