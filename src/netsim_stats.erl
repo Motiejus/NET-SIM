@@ -66,16 +66,27 @@ handle_call({event, #stat{action=stop, tick=Tick}=Ev}, _, State) ->
 handle_call(
     {event, #stat{nodeid=NodeId, action=Action, resource=Res, tick=Tick}=Ev}, _,
     #state{nodes=[NodeId], event=#stat{action=Action, resource=Res}}=State) ->
-    lager:info("~p: last event: ~p", [Tick, Ev]),
+    lager:info("~p: last event: ~p, tick_log: ~p",
+        [Tick, Ev, proplists:get_value(tick, State#state.log)]),
 
     {reply, ok, State#state{nodes=[], log=[Ev|State#state.log]}};
 
 %% @doc Receive matching event.
-handle_call({event, #stat{nodeid=NodeId, action=Action, resource=Res,
-                tick=Tick}=Ev}, _,
-        #state{nodes=Nodes, event=#stat{action=Action, resource=Res}}=State) ->
+handle_call({event,
+        #stat{nodeid=NodeId, action=Action, resource=Res, tick=Tick}}, _,
+        #state{nodes=Nodes, event=#stat{action=Action, resource=Res},
+                log=Log}=State) ->
     %lager:info("~p: matching event: ~p, nodes_left: ~p", [Tick, Ev, Nodes]),
-    {reply, ok, State#state{nodes = lists:delete(NodeId, Nodes)}};
+
+    % Update tick log:
+    TickLog0 = proplists:get_value(tick, Log, []),
+    Tick0 = proplists:get_value(Tick, TickLog0, 0),
+    Log1 = [
+        {tick, [{Tick, Tick0+1}|proplists:delete(Tick, TickLog0)]} |
+        proplists:delete(tick, Log)
+    ],
+
+    {reply, ok, State#state{nodes=lists:delete(NodeId, Nodes), log=Log1}};
 
 handle_call({event, 
         #stat{nodeid=NodeId, action=stats, tick=Tick, tx=TX, rx=RX}=Ev},
