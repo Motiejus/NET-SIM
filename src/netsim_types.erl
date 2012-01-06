@@ -19,6 +19,7 @@
 -type route_table() :: [{resource(), [route()]}]. % Head of [route()] is the
 %% most optimal route.
 -type msg_queue() :: {link(), [{Msg :: #route{}, TimeLeft :: pos_integer()}]}.
+-type results() :: [{add|del, [{netsim_types:latency(), pos_integer()}]}].
 
 -export_types([latency/0, nodeid/0, metric_attribute/0, metrics/0,
         resource/0, path/0, cost/0, route/0, route_table/0,

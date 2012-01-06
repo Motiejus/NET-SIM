@@ -16,7 +16,7 @@
         res = update_this :: netsim_types:resource(),
         upto :: pos_integer(),
         callback :: function(),
-        sofar = [{add, []}, {del, []}] %:: [{add,
+        numnodes = [{add, []}, {del, []}] %:: [{add,
 %                [{netsim_types:latency(), pos_integer()}]
 %            }, {del, 
 %                [{netsim_types:latency(), pos_integer()}]
@@ -55,8 +55,8 @@ handle_call({modify_resource, _E}, _, State=#state{res=update_this}) ->
     {reply, tell_resource_before_collecting, State};
 
 handle_call({modify_resource, #event{time=T, action=A, resource=Res}},
-    _From, State=#state{res=Res, sofar=Sofar}) ->
-    {reply, ok, State#state{sofar=set_value(A, [{T, 0}], Sofar)}};
+    _From, State=#state{res=Res, numnodes=NumNodes}) ->
+    {reply, ok, State#state{numnodes=set_value(A, [{T, 0}], NumNodes)}};
 
 handle_call({modify_resource, #event{}}, _From, State=#state{}) ->
     {reply, ok, State};
@@ -65,9 +65,9 @@ handle_call({modify_resource, #event{}}, _From, State=#state{}) ->
 %-spec handle_call({add_del_route, add | del, netsim_types:latency(),
 %        netsim_types:resource()}, term(), #state{}} -> {reply, ok, #state{}}.
 handle_call({add_del_route, A, T, Res}, _From,
-    State=#state{res=Res, sofar=Sofar}) ->
+    State=#state{res=Res, numnodes=NumNodes}) ->
 
-    NewAcc = case proplists:get_value(A, Sofar) of
+    NewAcc = case proplists:get_value(A, NumNodes) of
         [{T, HowMuchSoFar}|Old] -> [{T, HowMuchSoFar+1}|Old];
         X = [{_, HowMuchSoFar}|_] -> [{T, HowMuchSoFar+1}|X]
     end,
@@ -81,7 +81,7 @@ handle_call({add_del_route, A, T, Res}, _From,
             lager:error("Too many nodes: ~p", [NewAcc]);
         _ -> ok
     end,
-    {reply, ok, State#state{sofar=set_value(A, NewAcc, Sofar)}};
+    {reply, ok, State#state{numnodes=set_value(A, NewAcc, NumNodes)}};
 
 handle_call({add_del_route, _, _, _}, _From, State) ->
     {reply, ok, State}.

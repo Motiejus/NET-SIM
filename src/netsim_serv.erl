@@ -79,7 +79,7 @@ handle_cast(
     {route, #route{action=Action, resource=Res, nodeid=RemoteNodeId}=RouteMsg,
     ReportCompleteTo}, #state{nodeid=NodeId, tick=Tick, queues=Queues}=State) ->
 
-    lager:info("Route event: NodeID: ~p Route: ~p~n", [NodeId, RouteMsg]),
+    %lager:info("Route event: NodeID: ~p Route: ~p~n", [NodeId, RouteMsg]),
 
     % Send stats event:
     ok = netsim_stats:send_stat(
@@ -238,7 +238,7 @@ handle_call({event, #event{action=add, resource=R}}, _From,
 %% @doc Delete resource.
 handle_call({event, #event{action=del, resource=R}}, _From,
         #state{table=RouteTable0, tick=Tick, nodeid=NodeId}=State) ->
-    lager:info("Del resource: ~p~n", [State]),
+    %lager:info("Del resource: ~p~n", [State]),
     % Find route that is affected by del resource id and
     % have to be deleted:
     Route =
