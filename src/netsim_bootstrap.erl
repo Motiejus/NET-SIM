@@ -22,7 +22,7 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile) ->
     netsim_clock_serv:initialize(
         {
             SimulationList,
-            fun(_) -> lager:info("Finished simulation~n"), Rcpt ! done end
+            fun(_) -> Rcpt ! done end
         }
     ),
 
@@ -46,5 +46,5 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile) ->
 
     netsim_clock_serv:start(), % Starts ticking
     receive
-        done -> application:stop(netsim)
+        done -> init:stop()
     end.
