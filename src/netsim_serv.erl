@@ -2,6 +2,7 @@
 
 -include("include/netsim.hrl").
 -include("include/log_utils.hrl").
+
 -include_lib("eunit/include/eunit.hrl"). % @todo remove after testing
 
 -behaviour(gen_server).
