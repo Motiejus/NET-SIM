@@ -83,7 +83,7 @@ handle_cast(
 
     % Send stats event:
     ok = netsim_stats:send_stat(
-        #state{nodeid=NodeId, tick=Tick, resource=Res, action=Action}
+        #stat{nodeid=NodeId, tick=Tick, resource=Res, action=Action}
     ),
 
     % Update RX:
@@ -159,8 +159,18 @@ handle_cast({tick, Tick},
     {noreply, State#state{tick=Tick, pending_responses=Pending, queues=NewQ}};
 
 %% @doc Send traffic info to stats.
-handle_cast(finalize, State) ->
-    %% @todo
+handle_cast(finalize, #state{tick=Tick, nodeid=NodeId, queues=Queues}=State) ->
+    {TX1, RX1} = lists:foldl(
+        fun ({{_, _, _, {TX0, RX0}}, _}, {TX, RX}) ->
+            {TX+TX0, RX+RX0}
+        end,
+        {0, 0},
+        Queues
+    ),
+
+    ok = netsim_stats:send_stat(
+        #stat{nodeid=NodeId, tick=Tick, action=stats, tx=TX1, rx=RX1}
+    ),
 
     {noreply, State};
 

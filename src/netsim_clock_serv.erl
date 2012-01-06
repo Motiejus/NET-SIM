@@ -75,10 +75,15 @@ send_tick(timeout, State=#state{time=Time}) ->
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack, State#state{nodes=Nodes, done=true}}.
 
-node_ack({node_ack, N, true}, State=#state{nodes=[N], done=true, data=[]}) ->
+node_ack({node_ack, N, true},
+        State=#state{time=Tick, nodes=[N], done=true, data=[]}) ->
     lager:info("Final deleted node ~p", [N]),
     % Send to all nodes finalize msg:
-    [netsim_serv:finalize(N) || N <- netsim_sup:list_nodes()],
+    [netsim_serv:finalize(Node) || Node <- netsim_sup:list_nodes()],
+    % Send stop event to stats:
+    ok = netsim_stats:send_stat(
+        #stat{tick=Tick, action=stop}
+    ),
 
     {next_state, finalize, State#state{nodes=[]}};
 
