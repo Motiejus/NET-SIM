@@ -7,7 +7,6 @@
 -export([start/2, stop/1]).
 
 start_app() ->
-    ok = application:start(sasl),
     ok = application:start(lager),
     ok = application:start(netsim),
     netsim_bootstrap:init().
@@ -32,7 +31,7 @@ integration_test_() ->
 
 yadda() ->
     % @todo Replace with a fully deterministic thing
-    timer:sleep(1000),
+    timer:sleep(5000),
     %netsim_clock_serv:sync_state(finalize),
     ok.
 

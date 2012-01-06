@@ -8,10 +8,10 @@
 %% @doc Runs init with args.`
 init() ->
     init(
-        filename:join(["..", "priv", "nodelist.txt"]),
-        filename:join(["..", "priv", "channels.txt"]),
-        filename:join(["..", "priv", "simulation.txt"]),
-        filename:join(["..", "priv", "max_latency.txt"])
+        filename:join(["priv", "nodelist.txt"]),
+        filename:join(["priv", "channels.txt"]),
+        filename:join(["priv", "simulation.txt"]),
+        filename:join(["priv", "max_latency.txt"])
     ).
 
 %% @doc Reads data from files and creates new nodes setup.
