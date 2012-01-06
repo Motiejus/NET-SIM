@@ -13,7 +13,7 @@ start_app() ->
         filename:join(["priv", "channels.txt"]),
         filename:join(["priv", "simulation.txt"]),
         filename:join(["priv", "settings.txt"]),
-        filename:join(["output.txt"])
+        filename:join(["res", "output.txt"])
     ]).
 
 start_app(Args=[NodeList, Channels, Simulation, Settings, Output]) ->
