@@ -19,6 +19,6 @@
         action :: add | del | stop,
         resource :: netsim_types:resource(), % for which resource statistics
         nodeid :: netsim_types:nodeid(), % who sent this data
-        tx :: bandwidth(), % bits
-        rx :: bandwidth()
+        tx :: netsim_types:bits(), % bits
+        rx :: netsim_types:bits()
     }).
