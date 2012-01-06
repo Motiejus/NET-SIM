@@ -1,14 +1,13 @@
 %% @doc Starts simulation.
-
--include("include/log_utils.hrl").
-
 -module(netsim_bootstrap).
 
--export([init/4]).
+-include("include/netsim.hrl").
+
+-export([init/5]).
 
 %% @doc Reads data from files and creates new nodes setup.
--spec init(list(), list(), list(), list()) -> no_return().
-init(NodesFiles, LinksFile, SimulationFile, LatencyFile) ->
+-spec init(list(), list(), list(), list(), #stat{}) -> no_return().
+init(NodesFiles, LinksFile, SimulationFile, LatencyFile, Event) ->
     % NodeList :: {NodeId, Price}
     {ok, NodesList} = file:consult(NodesFiles),
     % LinksList :: [{From, To, Latency, Bandwith}]
@@ -41,6 +40,7 @@ init(NodesFiles, LinksFile, SimulationFile, LatencyFile) ->
         LinksList
     ),
 
+    netsim_stats:define_event(Event),
     netsim_clock_serv:start(), % Starts ticking
     receive
         done -> application:stop(netsim)

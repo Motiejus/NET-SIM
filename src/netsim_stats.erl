@@ -46,11 +46,11 @@ handle_call(state, _, State) ->
     {reply, State, State};
 
 %% @doc Define final event and start logging.
-handle_call({define, #stat{}=Event}, _From, State) ->
+handle_call({define, #stat{nodeid=NodeId}=Event}, _From, State) ->
     lager:info("netsim_stats: define event"),
 
     State1 = State#state{ 
-        nodes = netsim_sup:list_nodes(),
+        nodes = lists:delete(NodeId, netsim_sup:list_nodes()),
         event = Event
     },
 
@@ -71,12 +71,20 @@ handle_call(
     {reply, ok, State#state{nodes=[], log=[Ev|State#state.log]}};
 
 %% @doc Receive matching event.
-handle_call({event, #stat{nodeid=NodeId, action=Action, resource=Res}}, _,
+handle_call({event, #stat{nodeid=NodeId, action=Action, resource=Res,
+                tick=Tick}=Ev}, _,
         #state{nodes=Nodes, event=#stat{action=Action, resource=Res}}=State) ->
+    %lager:info("~p: matching event: ~p, nodes_left: ~p", [Tick, Ev, Nodes]),
     {reply, ok, State#state{nodes = lists:delete(NodeId, Nodes)}};
 
+handle_call({event, 
+        #stat{nodeid=NodeId, action=stats, tick=Tick, tx=TX, rx=RX}=Ev},
+        _, State) ->
+    lager:info("~p: nodeid: ~p, tx: ~p, rx: ~p", [Tick, NodeId, TX, RX]),
+
+    {reply, ok, State#state{log=[Ev|State#state.log]}};
+
 handle_call({event, _Ev}, _, State) ->
-    lager:info("~p: received event", [_Ev#stat.tick]),
     {reply, ok, State}.
 
 handle_cast(_Msg, State) ->

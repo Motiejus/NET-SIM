@@ -114,6 +114,8 @@ handle_cast({tick, Tick},
         _ -> throw({inconsistent_tick, Tick1, Tick, State})
     end,
 
+    %lager:info("~p: node (~p) received tick.~n", [Tick, NodeId]),
+
     % Collect messages to send:
     S = [{To, R} || {{_, To, _, _}, MT} <- Queues, {R, T} <- MT, T == 1],
     % S :: [{To :: nodeid(), Route :: #route{}}]
@@ -153,6 +155,8 @@ handle_cast({tick, Tick},
             end,
             Queues
         ),
+
+    %lager:info("~p: node (~p) finished tick.~n", [Tick, NodeId]),
 
     {noreply, State#state{tick=Tick, pending_responses=Pending, queues=NewQ}};
 
@@ -254,16 +258,7 @@ handle_call({event, #event{action=del, resource=R}}, _From,
         #route{nodeid=NodeId, route=Route, resource=R, action=del, time=Tick},
     State1 = send_route_msg(Msg, State#state{table=RouteTable1}),
 
-    {reply, ok, State1};
-
-handle_call({event, _Event}, _From, _State) ->
-    ok;
-
-handle_call(state, _From, State) ->
-    {reply, State, State};
-
-handle_call(_Msg, _From, State) ->
-    {reply, ok, State}.
+    {reply, ok, State1}.
 
 handle_info(_Msg, State) ->
     {noreply, State}.
