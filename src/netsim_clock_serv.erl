@@ -5,41 +5,34 @@
 -behaviour(gen_fsm).
 
 %% API callbacks
--export([start_link/0, node_work_complete/2, send_data_file/1, start/0,
-        sync_state/1]).
+-export([start_link/0, node_work_complete/2, initialize/1, start/0]).
 
 %% gen_fsm callbacks
 -export([init/1, code_change/4, terminate/3, finalize/2,
         handle_info/3, handle_sync_event/4, handle_event/3]).
 
 %% gen_fsm state callbacks
--export([wait_for_data/2, send_tick/2, node_ack/2]).
+-export([initialize/2, send_tick/2, node_ack/2]).
 
 -record(state, {
         time = 1 :: pos_integer(),
         nodes = [] :: [netsim_types:nodeid()], % Nodes that did not send ack
         data = [] :: [#'event'{}],
-        done = false % Whether all nodes are done with their work
+        done = false, % Whether all nodes are done with their work
+        callback
     }
 ).
 
 %% API
 %% =============================================================================
-send_data_file(Simulation) ->
-    gen_fsm:send_event(?NETSIM_CLOCK, {data_file, Simulation}).
+initialize(Simulation) ->
+    gen_fsm:send_event(?NETSIM_CLOCK, {initialize, Simulation}).
 
 start_link() ->
     gen_fsm:start_link({local, ?NETSIM_CLOCK}, ?MODULE, [], []).
 
 start() ->
     gen_fsm:send_event(?NETSIM_CLOCK, timeout).
-
-sync_state(State) ->
-    case gen_fsm:sync_send_all_state_event(?NETSIM_CLOCK, give_me_state_name) of
-        {State, Data} -> lager:info("State: ~p~n~p", [State, Data]), ok;
-        {X, Data} -> lager:info("State: ~p~n~p", [X, Data]), timer:sleep(1000), sync_state(State)
-    end.
-
 
 %% @doc Ack from node when it completes its processing after receiving the tick
 %%
@@ -48,11 +41,15 @@ sync_state(State) ->
 node_work_complete(NodeId, WorkToDo) ->
     gen_fsm:send_event(?NETSIM_CLOCK, {node_ack, NodeId, WorkToDo}).
 
-%% Ticking implementation
-%% =============================================================================
--spec wait_for_data([#event{}], #state{}) -> {next_state, send_tick, #state{}}.
-wait_for_data({data_file, Data}, State=#state{}) ->
-    {next_state, send_tick, State#state{data=Data}}. % Waiting for a trigger
+
+%% @doc Initialize clock. Give it a list of events and a completion callback
+%%
+%% Callback will be called when the simulation completes with these arguments:
+%% 
+-spec initialize({[#event{}], function()}, #state{}) ->
+    {next_state, send_tick, #state{}}.
+initialize(Data, Callback, State=#state{}) ->
+    {next_state, send_tick, State#state{data=Data, callback=Callback}}.
 
 %% @doc Have a message to send. Flush messages
 %%
@@ -98,7 +95,7 @@ finalize(stop, _State) ->
 %% gen_fsm callbacks
 %% =============================================================================
 init([]) ->
-    {ok, wait_for_data, #state{}}.
+    {ok, initialize, #state{}}.
 
 %% for debugging
 handle_sync_event(give_me_state_name, _From, StateName, StateData) ->
@@ -130,7 +127,7 @@ single_tick() ->
     % Copied from bootstrap
     {ok, SimulationFile} = file:consult(
         filename:join([code:priv_dir(netsim), "simulation.txt"])),
-    netsim_clock_serv:send_data_file(SimulationFile),
+    netsim_clock_serv:initialize(SimulationFile),
     netsim_clock_serv:start(),
     
     % @todo Replace with a fully deterministic thing
