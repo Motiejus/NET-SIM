@@ -1,7 +1,6 @@
 -module(netsim_serv).
 -include("include/netsim.hrl").
 -include("include/log_utils.hrl").
--include("include/netsim_serv.hrl").
 
 -include_lib("eunit/include/eunit.hrl").
 -behaviour(gen_server).
@@ -10,6 +9,16 @@
 
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
+
+-record(state, {
+        queues = [] :: [netsim_types:msg_queue()],
+        nodeid :: netsim_types:nodeid(),
+        table :: netsim_types:route_table(),
+        price :: netsim_types:price(),
+        tick = 0 :: non_neg_integer(), % current tick
+        max_latency :: pos_integer(), % max acceptable latency
+        pending_responses = [] :: [netsim_types:nodeid()]
+    }).
 
 %% =============================================================================
 
@@ -112,8 +121,8 @@ handle_cast({tick, Tick},
         [] -> netsim_clock_serv:node_work_complete(NodeId, true);
         _ -> ok
     end,
-    lager:info("Tick: ~p, Node: ~p, Send queue to: ~p, pending: ~p",
-        [Tick, NodeId, S, Pending]),
+    lager:info("Tick: ~p, Node: ~p, Queues: ~p, pending: ~p",
+        [Tick, NodeId, Queues, Pending]),
     [send_route(To, Route, NodeId) || {To, Route} <- S],
 
     % Update every queue head: decrease Tick and increase TX if msg is sent
@@ -348,17 +357,24 @@ update_optimal(Routes) ->
 %% changed (sending is done by adding msgs to queue).
 -spec send_msg_after_update(netsim_types:resource(), [netsim_types:route()],
     [netsim_types:route()], #state{}) -> #state{}.
-send_msg_after_update(R, [NewRoute|_], [], State) ->
+send_msg_after_update(R, [NewRoute|_], [], #state{nodeid=NodeId}=State) ->
     % Route for a new resource is added:
-    send_route_msg(#route{resource=R, route=NewRoute, action=change}, State);
+    send_route_msg(
+        #route{resource=R, route=NewRoute, action=change, nodeid=NodeId},
+        State
+    );
 
 send_msg_after_update(R, [], [_OldRoute|_], #state{nodeid=Id}=State) ->
     % Route is deleted:
     send_route_msg(#route{resource=R, nodeid=Id, action=del}, State);
 
-send_msg_after_update(R, [NewR|_], [CurR|_], State) when NewR /= CurR ->
+send_msg_after_update(R, [NewR|_], [CurR|_], #state{nodeid=NodeId}=State)
+        when NewR /= CurR ->
     % Best new route is changed:
-    send_route_msg(#route{resource=R, route=NewR, action=change}, State);
+    send_route_msg(
+        #route{resource=R, route=NewR, action=change, nodeid=NodeId},
+        State
+    );
 
 send_msg_after_update(_, _, _, State) ->
     % Nothing happened = no msg
