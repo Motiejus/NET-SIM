@@ -26,8 +26,11 @@
 
 %% API
 %% =============================================================================
-initialize(Simulation) ->
-    gen_fsm:send_event(?NETSIM_CLOCK, {initialize, Simulation}).
+
+%% @doc Callback is function which will be called with result data on end
+-spec initialize({Simulation :: [#event{}], Callback :: function()}) -> ok.
+initialize(Data) ->
+    gen_fsm:send_event(?NETSIM_CLOCK, Data).
 
 start_link() ->
     gen_fsm:start_link({local, ?NETSIM_CLOCK}, ?MODULE, [], []).
@@ -74,7 +77,7 @@ send_tick(timeout, State=#state{time=Time}) ->
 
 node_ack({node_ack, N, true}, State=#state{nodes=[N], done=true, data=[]}) ->
     lager:info("Final deleted node ~p", [N]),
-    {next_state, finalize, State#state{nodes=[]}};
+    {next_state, finalize, State#state{nodes=[]}, 0};
 
 node_ack({node_ack, N, _}, State=#state{nodes=[N], time=T}) ->
     lager:info("Got answer from last node ~p, time: ~p", [N, T]),
@@ -88,10 +91,9 @@ node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2, time=T}) ->
         }
     }.
 
-finalize(timeout, State) ->
-    {next_state, finalize, State};
-finalize(stop, _State) ->
-    {stop, stopped}.
+finalize(timeout, #state{callback=Callback}) ->
+    Callback(yadda),
+    {stop, normal}.
 
 %% gen_fsm callbacks
 %% =============================================================================
@@ -132,9 +134,6 @@ single_tick() ->
     netsim_clock_serv:start(),
     
     % @todo Replace with a fully deterministic thing
-    timer:sleep(1000),
-    %sync_state(finalize),
-
     % Ensure all events were sent to the nodes
     ?assertEqual(length(SimulationFile),
         length([ok || {_,{_,send_event,_},_} <- meck:history(netsim_serv)])).
