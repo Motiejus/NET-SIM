@@ -85,7 +85,7 @@ node_ack({node_ack, N, true},
         #stat{tick=Tick, action=stop}
     ),
 
-    {next_state, finalize, State#state{nodes=[]}};
+    {next_state, finalize, State#state{nodes=[]}, 0};
 
 node_ack({node_ack, N, _}, State=#state{nodes=[N], time=T}) ->
     %lager:info("Got answer from last node ~p, time: ~p", [N, T]),
@@ -130,7 +130,7 @@ clock_serv_test_() ->
         fun setup/0,
         fun cleanup/1,
         [
-            %{"Single tick test", fun single_tick/0}
+            {"Single tick test", fun single_tick/0}
         ]
     }.
 
@@ -157,6 +157,7 @@ setup() ->
     meck:new([netsim_serv, netsim_sup]),
     meck:expect(netsim_sup, list_nodes, 0, [n1, n2]), % We have 2 nodes to test
     meck:expect(netsim_serv, send_event, fun(_) -> ok end),
+    meck:expect(netsim_serv, finalize, 1, ok),
 
     T = ets:new(eunit_state, [set, public]),
     ets:insert(T, {n1, false}),
