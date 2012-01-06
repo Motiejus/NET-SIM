@@ -60,5 +60,6 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, Output) ->
                 lists:sublist(TickLog, TotalNodes)
             ),
             ok = file:close(Dev),
+            lager:info("Output written to ~p", [Output]),
             init:stop()
     end.
