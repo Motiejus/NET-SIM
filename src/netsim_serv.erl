@@ -62,12 +62,8 @@ init([Nodeid, Price, MaxLatency]) ->
 
 handle_cast({update_complete, NodeId}, State=#state{pending_responses=Resp,
         nodeid=Caller}) ->
-    EmptyQueue = lists:all(fun({_, Q}) -> length(Q) == 0 end, State#state.queues),
-    %lager:info("~n~n~nNodeId: ~p, EmptyQueue: ~p~n", [Caller, EmptyQueue]),
-    %lager:info("Update_complete ~p, pending: ~p, calling by ~p", [NodeId, Resp, W]),
     if
         Resp == [NodeId] -> % Last reply, we can send clock "done"
-            %lager:info("NodeId: ~p Resp: ~p~n", [Caller, Resp]),
             netsim_clock_serv:node_work_complete(Caller, false);
         true -> ok
     end,
@@ -96,9 +92,6 @@ handle_cast({route, #route{action=Action, nodeid=RemoteNodeId}=RouteMsg,
         del -> delete_route(RouteMsg, State1)
     end,
 
-    lager:info("ReportComplete ~p, reporting to ~p~n",
-        [NodeId, ReportCompleteTo]),
-
     gen_server:cast(ReportCompleteTo, {update_complete, NodeId}),
     {noreply, State2};
 
@@ -112,9 +105,7 @@ handle_cast({tick, Tick},
         _ -> throw({inconsistent_tick, Tick1, Tick, State})
     end,
 
-    lager:info("~p: Got tick: ~p (state: ~p)~n",
-        [NodeId, Tick, State]),
-
+    % Collect messages to send:
     S = [{To, R} || {{_, To, _, _}, MT} <- Queues, {R, T} <- MT, T == 1],
     % S :: [{To :: nodeid(), Route :: #route{}}]
 
@@ -125,18 +116,14 @@ handle_cast({tick, Tick},
             fun({_, Q}) -> length(Q) == 0 end,
             Queues
         ),
-    WorkComplete = 
-        case {Pending, EmptyQueue} of
-            {[], true} -> 
-                netsim_clock_serv:node_work_complete(NodeId, true);
-            {[], false} ->
-                netsim_clock_serv:node_work_complete(NodeId, false);
-            _ ->
-                ok
-        end,
 
-    %lager:info("Tick: ~p, Node: ~p, Queues: ~p, pending: ~p",
-    %    [Tick, NodeId, Queues, Pending]),
+    case Pending of
+        [] -> 
+            netsim_clock_serv:node_work_complete(NodeId, EmptyQueue);
+        _ ->
+            ok
+    end,
+
     [send_route(To, Route, NodeId) || {To, Route} <- S],
 
     % Update every queue head: decrease Tick and increase TX if msg is sent
@@ -157,10 +144,6 @@ handle_cast({tick, Tick},
             end,
             Queues
         ),
-
-    %lager:info("Finished tick: from ~p at ~p, pending: ~p", [NodeId, Tick, Pending]),
-        
-    %NewQ = [ { L, [{M,T-1}||{M,T}<-Arr,T=/=0] } || {L, Arr} <- Queues],
 
     {noreply, State#state{tick=Tick, pending_responses=Pending, queues=NewQ}};
 
@@ -184,7 +167,7 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
         lists:foldl(
             fun
                 % New link:
-                ({{F, T, M, _}=L, Queue}, Acc)
+                ({{F, T, M, _}, _Queue}, Acc)
                         when F == From, T == To, M /= Metrics ->
                     Acc;
                 % Existing link:
