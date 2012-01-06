@@ -178,7 +178,7 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
     {reply, ok, State#state{queues=Queues1}};
 
 %% @doc Add new resource.
-handle_call({event, #event{action=add_resource, resource=R}}, _From,
+handle_call({event, #event{action=add, resource=R}}, _From,
         #state{table=RouteTable0, nodeid=NodeId, tick=Tick}=State) ->
 
     % Check if given resource does exist:
@@ -203,16 +203,16 @@ handle_call({event, #event{action=add_resource, resource=R}}, _From,
     {reply, ok, State1};
 
 %% @doc Delete resource.
-handle_call({event, #event{action=del_resource, resource=R}}, _From,
+handle_call({event, #event{action=del, resource=R}}, _From,
         #state{table=RouteTable0, tick=Tick, nodeid=NodeId}=State) ->
     lager:info("Del resource: ~p~n", [State]),
-    % Find route that is affected by del_resource resource id and
+    % Find route that is affected by del resource id and
     % have to be deleted:
     Route =
         case proplists:get_value(R, RouteTable0) of
             [{[NodeId], _}]=Route0 -> Route0;
             _Route0 ->
-                throw({inconsistent_route_table, {del_resource, R},
+                throw({inconsistent_route_table, {del, R},
                         RouteTable0})
         end,
     % Delete route from table:
@@ -452,7 +452,7 @@ add_link_test() ->
         (state(a))#state.queues
     ).
 
-add_resource_test() ->
+add_test() ->
     % Create 'a' and 'b' nodes:
     start_link(a, 10, 200),
     start_link(b, 20, 200),
@@ -461,7 +461,7 @@ add_resource_test() ->
     add_link(b, {b, a, [{latency, 20}, {bandwidth, 64}]}),
 
     % Add resource '1' to 'a' node:
-    ok = send_event(#event{resource={a, 1}, action=add_resource}),
+    ok = send_event(#event{resource={a, 1}, action=add}),
 
     ?assertEqual(
         [{{a, 1}, [{[a], {0, 0}}]}],
@@ -473,11 +473,11 @@ add_resource_test() ->
         (state(a))#state.queues
     ).
 
-del_resource_test() ->
-    % Dirty hack: reuse add_resource_test() setup.
+del_test() ->
+    % Dirty hack: reuse add_test() setup.
 
     % Del resource '1' from 'a' node:
-    ok = send_event(#event{resource={a, 1}, action=del_resource}),
+    ok = send_event(#event{resource={a, 1}, action=del}),
 
     ?assertEqual(
         [],
@@ -656,7 +656,7 @@ tick_test() ->
     ),
 
     % Add resource {a, 1} to 'a' node:
-    send_event(#event{resource={a, 1}, action=add_resource, time=0}),
+    send_event(#event{resource={a, 1}, action=add, time=0}),
     ?assertMatch(
         [{{a, b, _, _}, [{#route{action=change, route={[a], _}}, _}]}],
         (state(a))#state.queues

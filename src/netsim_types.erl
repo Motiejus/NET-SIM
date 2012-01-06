@@ -2,7 +2,7 @@
 
 -include("include/netsim.hrl").
 
--type action() :: add_resource | del_resource.
+-type action() :: add | del.
 -type latency() :: pos_integer().
 -type nodeid() :: atom().
 -type price() :: integer().
