@@ -5,7 +5,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, send_stat/1, define_event/1]).
+-export([start_link/0, send_stat/1, define_event/1, state/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
@@ -47,8 +47,6 @@ handle_call(state, _, State) ->
 
 %% @doc Define final event and start logging.
 handle_call({define, #stat{nodeid=NodeId}=Event}, _From, State) ->
-    lager:info("netsim_stats: define event"),
-
     State1 = State#state{ 
         nodes = lists:delete(NodeId, netsim_sup:list_nodes()),
         event = Event
