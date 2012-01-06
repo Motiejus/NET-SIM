@@ -52,7 +52,7 @@ node_work_complete(NodeId, WorkToDo) ->
 %% 
 -spec initialize({[#event{}], function()}, #state{}) ->
     {next_state, send_tick, #state{}}.
-initialize(Data, Callback, State=#state{}) ->
+initialize({Data, Callback}, State=#state{}) ->
     {next_state, send_tick, State#state{data=Data, callback=Callback}}.
 
 %% @doc Have a message to send. Flush messages
@@ -91,9 +91,9 @@ node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2, time=T}) ->
         }
     }.
 
-finalize(timeout, #state{callback=Callback}) ->
+finalize(timeout, State=#state{callback=Callback}) ->
     Callback(yadda),
-    {stop, normal}.
+    {next_state, finalize, State}.
 
 %% gen_fsm callbacks
 %% =============================================================================
@@ -130,8 +130,13 @@ single_tick() ->
     % Copied from bootstrap
     {ok, SimulationFile} = file:consult(
         filename:join([code:priv_dir(netsim), "simulation.txt"])),
-    netsim_clock_serv:initialize(SimulationFile),
+    Rcpt = self(),
+    netsim_clock_serv:initialize({SimulationFile, fun(Res) -> Rcpt ! Res end}),
     netsim_clock_serv:start(),
+    receive
+        A -> A
+    end,
+    lager:info("Received ~p", [A]),
     
     % @todo Replace with a fully deterministic thing
     % Ensure all events were sent to the nodes

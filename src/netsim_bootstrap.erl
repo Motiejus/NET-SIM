@@ -19,7 +19,8 @@ init(NodesFiles, LinksFile, SimulationFile, LatencyFile) ->
     {ok, [MaxLatency]} = file:consult(LatencyFile),
 
     % Send SimulationFile to clock_serv
-    netsim_clock_serv:initialize(SimulationList),
+    Rcpt = self(),
+    netsim_clock_serv:initialize({SimulationList, fun(_) -> Rcpt ! done end}),
 
     % Start nodes without channels:
     [netsim_sup:add_node(Id, Price, MaxLatency) || {Id, Price} <- NodesList],
@@ -35,4 +36,7 @@ init(NodesFiles, LinksFile, SimulationFile, LatencyFile) ->
         LinksList
     ),
 
-    netsim_clock_serv:start(). % Starts ticking
+    netsim_clock_serv:start(), % Starts ticking
+    receive
+        done -> application:stop(netsim)
+    end.
