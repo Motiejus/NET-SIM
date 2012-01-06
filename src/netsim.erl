@@ -31,13 +31,16 @@ integration_test_() ->
     }.
 
 yadda() ->
-    netsim_clock_serv:sync_state(finalize),
+    % @todo Replace with a fully deterministic thing
+    timer:sleep(1000),
+    %netsim_clock_serv:sync_state(finalize),
     ok.
 
 cleanup(_) ->
     ?mute_log(),
     application:stop(sasl),
     application:stop(netsim),
+    application:stop(lager),
     ?unmute_log().
 
 -endif.
