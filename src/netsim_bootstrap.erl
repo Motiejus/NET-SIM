@@ -50,6 +50,12 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, Output) ->
             % TickLog :: [{latency(), integer()}]
             {ok, Dev} = file:open(Output, [write]),
             TotalNodes = length(NodesList),
+
+            % @todo UGLY HACK. Make initial resource add/del to TickLog!
+            [#event{time=Start}|_] = SimulationList,
+
+            lager:info("Start: ~p", [Start]),
+            ok = io:fwrite(Dev, "~p 0.00~n", [Start]),
             lists:foldr(
                 fun ({Time, HowMany}, Acc) ->
                         NewVal = (HowMany + Acc) / TotalNodes * 100,
