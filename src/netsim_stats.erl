@@ -69,7 +69,10 @@ handle_call(
     lager:info("~p: last event: ~p, tick_log: ~p",
         [Tick, Ev, proplists:get_value(tick, State#state.log)]),
 
-    {reply, ok, State#state{nodes=[], log=[Ev|State#state.log]}};
+    % Update tick counter:
+    State1 = update_tick_counter(Tick, State),
+
+    {reply, ok, State1#state{nodes=[], log=[Ev|State1#state.log]}};
 
 %% @doc Receive matching event.
 handle_call({event,
@@ -79,14 +82,9 @@ handle_call({event,
     %lager:info("~p: matching event: ~p, nodes_left: ~p", [Tick, Ev, Nodes]),
 
     % Update tick log:
-    TickLog0 = proplists:get_value(tick, Log, []),
-    Tick0 = proplists:get_value(Tick, TickLog0, 0),
-    Log1 = [
-        {tick, [{Tick, Tick0+1}|proplists:delete(Tick, TickLog0)]} |
-        proplists:delete(tick, Log)
-    ],
+    State1 = update_tick_counter(Tick, State),
 
-    {reply, ok, State#state{nodes=lists:delete(NodeId, Nodes), log=Log1}};
+    {reply, ok, State1#state{nodes=lists:delete(NodeId, Nodes)}};
 
 handle_call({event, 
         #stat{nodeid=NodeId, action=stats, tick=Tick, tx=TX, rx=RX}=Ev},
@@ -110,6 +108,16 @@ terminate(normal, _State) ->
 code_change(_, _, State) ->
     {ok, State}.
 
+update_tick_counter(Tick, #state{log=Log}=State) ->
+    TickLog0 = proplists:get_value(tick, Log, []),
+    Tick0 = proplists:get_value(Tick, TickLog0, 0),
+    Log1 = [
+        {tick, [{Tick, Tick0+1}|proplists:delete(Tick, TickLog0)]} |
+        proplists:delete(tick, Log)
+    ],
+
+    State#state{log=Log1}.
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -129,17 +137,20 @@ workflow_test() ->
     ),
 
     ok = send_stat(#stat{action=del, resource={x,2}}),
-    ok = send_stat(#stat{action=del, resource={a,1}, nodeid=b}),
+    ok = send_stat(#stat{action=del, resource={a,1}, nodeid=b, tick=2}),
     ok = send_stat(#stat{action=del, resource={a,1}, nodeid=a, tick=69}),
 
     ?assertMatch(
-        [#stat{action=del, resource={a, 1}, nodeid=a, tick=69}],
+        [
+            #stat{action=del, resource={a, 1}, nodeid=a, tick=69},
+            {tick, [{69, 1}, {2, 1}]}
+        ],
         (state())#state.log
     ),
 
     ok = send_stat(#stat{action=stop, tick=71}),
     ?assertMatch(
-        [_, _],
+        [_, _, _],
         (state())#state.log
     ),
 

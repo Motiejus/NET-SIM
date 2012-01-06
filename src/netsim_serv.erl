@@ -258,7 +258,10 @@ handle_call({event, #event{action=del, resource=R}}, _From,
         #route{nodeid=NodeId, route=Route, resource=R, action=del, time=Tick},
     State1 = send_route_msg(Msg, State#state{table=RouteTable1}),
 
-    {reply, ok, State1}.
+    {reply, ok, State1};
+
+handle_call(state, _, State) ->
+    {reply, State, State}.
 
 handle_info(_Msg, State) ->
     {noreply, State}.
@@ -681,6 +684,9 @@ tick_test() ->
     meck:new(netsim_clock_serv, [no_link]),
     meck:expect(netsim_clock_serv, node_work_complete, 2, ok),
 
+    meck:new(netsim_stats, [no_link]),
+    meck:expect(netsim_stats, send_stat, 1, ok),
+
     add_link(a, {b, a, [{latency, 15}, {bandwidth, 64}]}),
     add_link(b, {b, a, [{latency, 15}, {bandwidth, 64}]}),
 
@@ -711,6 +717,7 @@ tick_test() ->
         (state(b))#state.queues
     ),
 
+    ok = meck:unload(netsim_stats),
     ok = meck:unload(netsim_clock_serv).
 
 -endif.

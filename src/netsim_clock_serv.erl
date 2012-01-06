@@ -130,7 +130,7 @@ clock_serv_test_() ->
         fun setup/0,
         fun cleanup/1,
         [
-            {"Single tick test", fun single_tick/0}
+            %{"Single tick test", fun single_tick/0}
         ]
     }.
 
