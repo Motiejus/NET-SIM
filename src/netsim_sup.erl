@@ -39,7 +39,8 @@ add_node(NodeId, Price, MaxLatency) ->
 init([]) ->
     {ok, { {one_for_one, 5, 10},
             [
-                ?CHILD(netsim_clock_serv, netsim_clock_serv, worker, [])
+                ?CHILD(netsim_clock_serv, netsim_clock_serv, worker, []),
+                ?CHILD(netsim_stats, netsim_stats, worker, [])
             ]
         }
     }.

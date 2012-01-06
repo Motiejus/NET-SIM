@@ -20,7 +20,12 @@ init(NodesFiles, LinksFile, SimulationFile, LatencyFile) ->
 
     % Send SimulationFile to clock_serv
     Rcpt = self(),
-    netsim_clock_serv:initialize({SimulationList, fun(_) -> Rcpt ! done end}),
+    netsim_clock_serv:initialize(
+        {
+            SimulationList,
+            fun(_) -> lager:info("Finished simulation~n"), Rcpt ! done end
+        }
+    ),
 
     % Start nodes without channels:
     [netsim_sup:add_node(Id, Price, MaxLatency) || {Id, Price} <- NodesList],

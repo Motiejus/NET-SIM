@@ -1,5 +1,6 @@
 -module(netsim).
 -include("include/log_utils.hrl").
+-include("include/netsim.hrl").
 
 -behavior(application).
 
@@ -9,6 +10,8 @@
 start_app() ->
     ok = application:start(lager),
     ok = application:start(netsim),
+
+    netsim_stats:define_event(#stat{action=change, resource={kedainiai, 1}}),
 
     % Test data:
     netsim_bootstrap:init(

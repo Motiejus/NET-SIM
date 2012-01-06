@@ -79,8 +79,6 @@ handle_cast(
     {route, #route{action=Action, resource=Res, nodeid=RemoteNodeId}=RouteMsg,
     ReportCompleteTo}, #state{nodeid=NodeId, tick=Tick, queues=Queues}=State) ->
 
-    %lager:info("Route event: NodeID: ~p Route: ~p~n", [NodeId, RouteMsg]),
-
     % Send stats event:
     ok = netsim_stats:send_stat(
         #stat{nodeid=NodeId, tick=Tick, resource=Res, action=Action}

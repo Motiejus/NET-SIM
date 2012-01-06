@@ -47,6 +47,8 @@ handle_call(state, _, State) ->
 
 %% @doc Define final event and start logging.
 handle_call({define, #stat{}=Event}, _From, State) ->
+    lager:info("netsim_stats: define event"),
+
     State1 = State#state{ 
         nodes = netsim_sup:list_nodes(),
         event = Event
@@ -74,6 +76,7 @@ handle_call({event, #stat{nodeid=NodeId, action=Action, resource=Res}}, _,
     {reply, ok, State#state{nodes = lists:delete(NodeId, Nodes)}};
 
 handle_call({event, _Ev}, _, State) ->
+    lager:info("~p: received event", [_Ev#stat.tick]),
     {reply, ok, State}.
 
 handle_cast(_Msg, State) ->
