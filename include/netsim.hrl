@@ -16,7 +16,7 @@
 
 -record(stat, {
         tick :: netsim_types:latency(),
-        action :: change | del | stats | stop,
+        action :: change | del | traffic | stop | total_traffic,
         resource :: netsim_types:resource(), % for which resource statistics
         nodeid :: netsim_types:nodeid(), % who sent this data
         tx :: netsim_types:bits(),
@@ -28,5 +28,6 @@
 -record(log, {
     events = [] :: list(),
     traffic = [] :: list(),
-    ticks = [] :: list()
+    ticks = [] :: list(),
+    total_traffic = [] :: list()
 }).

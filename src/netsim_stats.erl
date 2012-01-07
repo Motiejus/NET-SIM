@@ -64,6 +64,11 @@ handle_call({event, #stat{action=stop, tick=Tick}=Ev}, _, State) ->
 
     {reply, ok, update_event_log(Ev, State)};
 
+handle_call({event, #stat{action=total_traffic}=Ev}, _,
+        #state{event=#stat{action=Action}}=State) when Action /= '$done' ->
+
+    {reply, ok, update_total_traffic(Ev, State)};
+
 %% @doc Receive last missing and matching event.
 handle_call(
     {event, #stat{nodeid=NodeId, action=Action, resource=Res, tick=Tick}=Ev}, _,
@@ -76,7 +81,8 @@ handle_call(
 
     % Wait for traffic info:
     {reply, ok,
-        State2#state{event=#stat{action=done}, nodes=netsim_sup:list_nodes()}};
+        State2#state{event=#stat{action='$done'},
+            nodes=netsim_sup:list_nodes()}};
 
 %% @doc Receive matching event.
 handle_call({event,
@@ -153,6 +159,14 @@ update_tick_log(Tick, #state{log=Log}=State) ->
 
     State#state{log=Log1}.
 
+update_total_traffic(#stat{tick=Tick, tx=TX, rx=RX}, #state{log=Log}=State) ->
+    Total = Log#log.total_traffic,
+    {TX1, RX1} = proplists:get_value(Tick, Total, {0, 0}),
+    Total1 = [{Tick, {TX1+TX, RX1+RX}}|proplists:delete(Tick, Total)],
+    Log1 = Log#log{total_traffic=Total1},
+
+    State#state{log=Log1}.
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -181,6 +195,16 @@ update_tick_log_test() ->
     ?assertEqual(
         [{10, 2}],
         State1#state.log#log.ticks
+    ).
+
+update_total_traffic_test() ->
+    State0 = update_total_traffic(#stat{tick=1, tx=1, rx=2}, #state{}),
+    State1 = update_total_traffic(#stat{tick=1, tx=2, rx=3}, State0),
+    State2 = update_total_traffic(#stat{tick=2, tx=1, rx=1}, State1),
+
+    ?assertEqual(
+        [{2, {1, 1}}, {1, {3, 5}}],
+        State2#state.log#log.total_traffic
     ).
 
 workflow_test() ->

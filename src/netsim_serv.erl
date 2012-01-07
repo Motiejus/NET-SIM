@@ -158,6 +158,13 @@ handle_cast({tick, Tick},
 
     %lager:info("~p: node (~p) finished tick.~n", [Tick, NodeId]),
 
+    % Send total tx/rx to stats:
+    {TotalTX, TotalRX} = total_traffic(NewQ),
+    ok = netsim_stats:send_stat(
+        #stat{tick=Tick, action=total_traffic, nodeid=NodeId, tx=TotalTX,
+            rx=TotalRX} 
+    ),
+
     {noreply, State#state{tick=Tick, pending_responses=Pending, queues=NewQ}};
 
 handle_cast(_Msg, State) ->
@@ -453,6 +460,18 @@ find_route({Path, _}, Routes) ->
 -spec has_loop(netsim_types:nodeid(), netsim_types:route()) -> boolean().
 has_loop(NodeId, {Path, _}=_Route) ->
     lists:member(NodeId, Path).
+
+%% @doc Returns total TX/RX per all links.
+-spec total_traffic([netsim_types:msg_queue()]) ->
+    {netsim_types:bits(), netsim_types:bits()}.
+total_traffic(Queues) ->
+    lists:foldl(
+        fun ({{_, _, _, {TX0, RX0}}, _}, {TX, RX}) ->
+            {TX+TX0, RX+RX0}
+        end,
+        {0, 0},
+        Queues
+    ).
 
 %% =============================================================================
 
