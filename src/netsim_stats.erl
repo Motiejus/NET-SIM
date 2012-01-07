@@ -84,8 +84,14 @@ handle_call({event,
         #state{nodes=Nodes, event=#stat{action=Action, resource=Res}}=State) ->
     %lager:info("~p: matching event: ~p, nodes_left: ~p", [Tick, Ev, Nodes]),
 
-    % Update tick log:
-    State1 = update_tick_log(Tick, State),
+    % Update tick log if NodeId is in Nodes:
+    State1 =
+        case lists:member(NodeId, Nodes) of
+            true ->
+                update_tick_log(Tick, State);
+            false ->
+                State
+        end,
 
     {reply, ok, State1#state{nodes=lists:delete(NodeId, Nodes)}};
 
@@ -129,7 +135,7 @@ code_change(_, _, State) ->
 
 update_traffic_log(#stat{nodeid=NodeId, tx=TX, rx=RX},
         #state{log=Log}=State) ->
-    Log1 = Log#log{traffic=[{NodeId, TX+RX}|Log#log.traffic]},
+    Log1 = Log#log{traffic=[{NodeId, {TX, RX}}|Log#log.traffic]},
 
     State#state{log=Log1}.
 
@@ -155,7 +161,7 @@ update_traffic_log_test() ->
     State1 = update_traffic_log(#stat{nodeid=qwerty, tx=2, rx=5}, State0),
     
     ?assertEqual(
-        [{qwerty, 7}, {foobar, 3}],
+        [{qwerty, {2, 5}}, {foobar, {1, 2}}],
         State1#state.log#log.traffic
     ).
 
@@ -201,7 +207,7 @@ workflow_test() ->
         #log{
             ticks = [{69, 1}, {2, 1}],
             events = [#stat{action=del, tick=69}],
-            traffic = [{a, 7}]
+            traffic = [{a, {2, 5}}]
         },
         (state())#state.log
     ),
