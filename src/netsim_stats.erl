@@ -55,9 +55,9 @@ handle_call(state, _, State) ->
     {reply, State, State};
 
 %% @doc Define final event and start logging.
-handle_call({define, #stat{nodeid=NodeId}=Event}, _From, State) ->
+handle_call({define, #stat{}=Event}, _From, State) ->
     State1 = State#state{ 
-        nodes = lists:delete(NodeId, netsim_sup:list_nodes()),
+        nodes = netsim_sup:list_nodes(),
         event = Event
     },
 

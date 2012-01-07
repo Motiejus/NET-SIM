@@ -226,6 +226,11 @@ handle_call({event, #event{action=add, resource=R}}, _From,
             throw({resource_already_exists, R})
     end,
 
+    % Send init statistics:
+    ok = netsim_stats:send_stat(
+        #stat{resource=R, nodeid=NodeId, action=change, tick=Tick}
+    ),
+
     % Add new route into table:
     Cost = {0, 0},
     Route = {[NodeId], Cost},
@@ -243,6 +248,12 @@ handle_call({event, #event{action=add, resource=R}}, _From,
 handle_call({event, #event{action=del, resource=R}}, _From,
         #state{table=RouteTable0, tick=Tick, nodeid=NodeId}=State) ->
     %lager:info("Del resource: ~p~n", [State]),
+
+    % Send init statistics:
+    ok = netsim_stats:send_stat(
+        #stat{resource=R, nodeid=NodeId, action=del, tick=Tick}
+    ),
+
     % Find route that is affected by del resource id and
     % have to be deleted:
     Route =
@@ -492,6 +503,9 @@ add_link_test() ->
     ).
 
 add_test() ->
+    meck:new(netsim_stats, [no_link]),
+    meck:expect(netsim_stats, send_stat, 1, ok),
+
     % Create 'a' and 'b' nodes:
     start_link(a, 10, 200),
     start_link(b, 20, 200),
@@ -685,9 +699,6 @@ tick_test() ->
     start_link(b, 11, 200),
     meck:new(netsim_clock_serv, [no_link]),
     meck:expect(netsim_clock_serv, node_work_complete, 2, ok),
-
-    meck:new(netsim_stats, [no_link]),
-    meck:expect(netsim_stats, send_stat, 1, ok),
 
     add_link(a, {b, a, [{latency, 15}, {bandwidth, 64}]}),
     add_link(b, {b, a, [{latency, 15}, {bandwidth, 64}]}),
