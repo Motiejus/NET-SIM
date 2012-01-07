@@ -13,17 +13,21 @@ start_app() ->
         filename:join(["priv", "channels.txt"]),
         filename:join(["priv", "simulation.txt"]),
         filename:join(["priv", "settings.txt"]),
-        filename:join(["res", "output.txt"])
+        filename:join(["res", "ticks.txt"]),
+        filename:join(["res", "total_traffic.txt"]),
+        filename:join(["res", "traffic.txt"])
     ]).
 
-start_app(Args=[NodeList, Channels, Simulation, Settings, Output]) ->
+start_app(Args=[NodeList, Channels, Simulation, Settings, Ticks, TotalTraffic,
+        Traffic]) ->
     ok = application:start(lager),
     ok = application:start(netsim),
 
     % Test data:
     lager:info("Files: ~p", [Args]),
     netsim_stats:define_event(#stat{action=change, resource={kedainiai, 1}}),
-    netsim_bootstrap:init(NodeList, Channels, Simulation, Settings, Output).
+    netsim_bootstrap:init(NodeList, Channels, Simulation, Settings, Ticks,
+        TotalTraffic, Traffic).
 
 start(_, _) ->
     {ok, _Pid} = netsim_sup:start_link().

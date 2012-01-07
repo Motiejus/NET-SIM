@@ -3,11 +3,13 @@
 
 -include("include/netsim.hrl").
 
--export([init/5]).
+-export([init/7]).
 
 %% @doc Reads data from files and creates new nodes setup.
--spec init(list(), list(), list(), list(), list()) -> no_return().
-init(NodesFiles, LinksFile, SimulationFile, SettingsFile, Output) ->
+-spec init(list(), list(), list(), list(), list(), list(), list()) ->
+    no_return().
+init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
+        TotalTrafficFile, TrafficFile) ->
     % NodeList :: {NodeId, Price}
     {ok, NodesList} = file:consult(NodesFiles),
     % LinksList :: [{From, To, Latency, Bandwith}]
@@ -53,38 +55,37 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, Output) ->
     receive
         finished ->
             lager:info("Finished stats."),
-            {ok, Dev} = file:open(Output, [write]),
-
             Log = netsim_stats:log(),
-            % * Log#log.events - [S1, S2], S1 - converge event, S2 - route update
-            %   event;
-            % * Log#log.traffic - [{NodeId, TX+RX}];
-            % * Log#log.ticks - [{Tick, Count}], starts from send_event event.
-            lager:info("Log: ~p", [Log])
-    end,
 
-    ok.
-    %receive
-    %    {done, TickLog} ->
-    %        % TickLog :: [{latency(), integer()}]
-    %        {ok, Dev} = file:open(Output, [write]),
-    %        TotalNodes = length(NodesList),
+            % Write ticks log:
+            {ok, Dev0} = file:open(TicksFile, [write]),
+            lists:foreach(
+                fun ({Tick, Count}) ->
+                    ok = io:fwrite(Dev0, "~p ~p~n", [Tick, Count])
+                end,
+                Log#log.ticks
+            ),
+            ok = file:close(Dev0),
 
-    %        % @todo UGLY HACK. Make initial resource add/del to TickLog!
-    %        [#event{time=Start}|_] = SimulationList,
+            % Write total traffic log:
+            {ok, Dev1} = file:open(TotalTrafficFile, [write]),
+            lists:foreach(
+                fun ({Tick, {TX, RX}}) ->
+                    ok = io:fwrite(Dev1, "~p ~p ~p~n", [Tick, TX, RX])
+                end,
+                Log#log.total_traffic
+            ),
+            ok = file:close(Dev1),
 
-    %        lager:info("Start: ~p", [Start]),
-    %        ok = io:fwrite(Dev, "~p 0.00~n", [Start]),
-    %        lists:foldr(
-    %            fun ({Time, HowMany}, Acc) ->
-    %                    NewVal = (HowMany + Acc) / TotalNodes * 100,
-    %                    ok = io:fwrite(Dev, "~p ~.2f~n", [Time, NewVal]),
-    %                    HowMany + Acc
-    %            end,
-    %            0,
-    %            lists:sublist(TickLog, TotalNodes)
-    %        ),
-    %        ok = file:close(Dev),
-    %        lager:info("Output written to ~p", [Output]),
-    %        init:stop()
-    %end.
+            % Write traffic log:
+            {ok, Dev2} = file:open(TrafficFile, [write]),
+            lists:foreach(
+                fun ({Node, {TX, RX}}) ->
+                    ok = io:fwrite(Dev2, "~p ~p ~p~n", [Node, TX, RX])
+                end,
+                Log#log.traffic
+            ),
+            ok = file:close(Dev2),
+
+            lager:info("EOF")
+    end.
