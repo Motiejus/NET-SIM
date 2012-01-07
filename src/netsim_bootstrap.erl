@@ -45,27 +45,28 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, Output) ->
     netsim_stats:define_event(#stat{action=change, resource=Res, nodeid=NodeId}),
 
     netsim_clock_serv:start(), % Starts ticking
-    receive
-        {done, TickLog} ->
-            % TickLog :: [{latency(), integer()}]
-            {ok, Dev} = file:open(Output, [write]),
-            TotalNodes = length(NodesList),
+    ok.
+    %receive
+    %    {done, TickLog} ->
+    %        % TickLog :: [{latency(), integer()}]
+    %        {ok, Dev} = file:open(Output, [write]),
+    %        TotalNodes = length(NodesList),
 
-            % @todo UGLY HACK. Make initial resource add/del to TickLog!
-            [#event{time=Start}|_] = SimulationList,
+    %        % @todo UGLY HACK. Make initial resource add/del to TickLog!
+    %        [#event{time=Start}|_] = SimulationList,
 
-            lager:info("Start: ~p", [Start]),
-            ok = io:fwrite(Dev, "~p 0.00~n", [Start]),
-            lists:foldr(
-                fun ({Time, HowMany}, Acc) ->
-                        NewVal = (HowMany + Acc) / TotalNodes * 100,
-                        ok = io:fwrite(Dev, "~p ~.2f~n", [Time, NewVal]),
-                        HowMany + Acc
-                end,
-                0,
-                lists:sublist(TickLog, TotalNodes)
-            ),
-            ok = file:close(Dev),
-            lager:info("Output written to ~p", [Output]),
-            init:stop()
-    end.
+    %        lager:info("Start: ~p", [Start]),
+    %        ok = io:fwrite(Dev, "~p 0.00~n", [Start]),
+    %        lists:foldr(
+    %            fun ({Time, HowMany}, Acc) ->
+    %                    NewVal = (HowMany + Acc) / TotalNodes * 100,
+    %                    ok = io:fwrite(Dev, "~p ~.2f~n", [Time, NewVal]),
+    %                    HowMany + Acc
+    %            end,
+    %            0,
+    %            lists:sublist(TickLog, TotalNodes)
+    %        ),
+    %        ok = file:close(Dev),
+    %        lager:info("Output written to ~p", [Output]),
+    %        init:stop()
+    %end.

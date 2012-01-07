@@ -22,3 +22,5 @@
         tx :: netsim_types:bits(),
         rx :: netsim_types:bits()
     }).
+
+-define(NETSIM_PUBSUB, netsim_pubsub). % pg2 group name

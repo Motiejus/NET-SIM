@@ -28,6 +28,7 @@
 
 %% @doc Start stats process.
 start_link() ->
+    pg2:create(?NETSIM_PUBSUB),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Sends stats event.
@@ -44,7 +45,7 @@ state() ->
     gen_server:call(?MODULE, state).
 
 tick_log() ->
-    proplists:get_value(tick, (state())#state.log).
+    (state())#state.log#log.ticks.
 
 %% =============================================================================
 
@@ -73,14 +74,15 @@ handle_call({event, #stat{action=stop, tick=Tick}=Ev}, _, State) ->
 handle_call(
     {event, #stat{nodeid=NodeId, action=Action, resource=Res, tick=Tick}=Ev}, _,
     #state{nodes=[NodeId], event=#stat{action=Action, resource=Res}}=State) ->
-    lager:info("~p: last event: ~p, tick_log: ~p",
-        [Tick, Ev, proplists:get_value(tick, State#state.log)]),
+    lager:info("~p: last event: ~p", [Tick, Ev]),
 
     % Update tick counter:
     State1 = update_tick_log(Tick, State),
     State2 = update_event_log(Ev, State1),
 
-    {reply, ok, State2#state{nodes=[]}};
+    % Wait for traffic info:
+    {reply, ok,
+        State2#state{event=#stat{action=done}, nodes=netsim_sup:list_nodes()}};
 
 %% @doc Receive matching event.
 handle_call({event,
@@ -95,10 +97,24 @@ handle_call({event,
 
 handle_call({event, 
         #stat{nodeid=NodeId, action=traffic, tick=Tick, tx=TX, rx=RX}=Ev},
-        _, State) ->
+        _, #state{nodes=Nodes}=State) ->
     lager:info("~p: nodeid: ~p, tx: ~p, rx: ~p", [Tick, NodeId, TX, RX]),
 
-    {reply, ok, update_traffic_log(Ev, State)};
+    % Delete node from nodes list and update traffic log:
+    State1 = update_traffic_log(
+        Ev,
+        State#state{nodes=lists:delete(NodeId, Nodes)}
+    ),
+
+    % Send 'finished' msg if all nodes sent traffic stats:
+    if 
+        State1#state.nodes == [] ->
+            [Pid ! finished || Pid <- pg2:get_members(?NETSIM_PUBSUB)];
+        true ->
+            ok
+    end,
+
+    {reply, ok, State1};
 
 handle_call({event, _Ev}, _, State) ->
     {reply, ok, State}.
