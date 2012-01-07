@@ -59,6 +59,7 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
 
             % Write ticks log:
             {ok, Dev0} = file:open(TicksFile, [write]),
+            ok = io:fwrite(Dev0, "#tick count~n", []),
             lists:foreach(
                 fun ({Tick, Count}) ->
                     ok = io:fwrite(Dev0, "~p ~p~n", [Tick, Count])
@@ -69,6 +70,7 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
 
             % Write total traffic log:
             {ok, Dev1} = file:open(TotalTrafficFile, [write]),
+            ok = io:fwrite(Dev1, "#tick tx rx~n", []),
             lists:foreach(
                 fun ({Tick, {TX, RX}}) ->
                     ok = io:fwrite(Dev1, "~p ~p ~p~n", [Tick, TX, RX])
@@ -79,6 +81,7 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
 
             % Write traffic log:
             {ok, Dev2} = file:open(TrafficFile, [write]),
+            ok = io:fwrite(Dev2, "#node_id tx rx~n", []),
             lists:foreach(
                 fun ({Node, {TX, RX}}) ->
                     ok = io:fwrite(Dev2, "~p ~p ~p~n", [Node, TX, RX])
