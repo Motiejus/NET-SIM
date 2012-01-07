@@ -11,9 +11,15 @@
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
 
+-record(log, {
+    events = [] :: list(),
+    traffic = [] :: list(),
+    ticks = [] :: list()
+}).
+
 -record(state, {
     event :: #stat{},
-    log  = [] :: list(),
+    log  = #log{} :: #log{},
     nodes = []:: [netsim_types:nodeid()] % list of nodes for waiting events from
     %% nodes
 }).
@@ -61,7 +67,7 @@ handle_call({define, #stat{nodeid=NodeId}=Event}, _From, State) ->
 handle_call({event, #stat{action=stop, tick=Tick}=Ev}, _, State) -> 
     lager:info("~p: converged.~n", [Tick]),
 
-    {reply, ok, State#state{log=[Ev|State#state.log]}};
+    {reply, ok, update_event_log(Ev, State)};
 
 %% @doc Receive last missing and matching event.
 handle_call(
@@ -71,28 +77,28 @@ handle_call(
         [Tick, Ev, proplists:get_value(tick, State#state.log)]),
 
     % Update tick counter:
-    State1 = update_tick_counter(Tick, State),
+    State1 = update_tick_log(Tick, State),
+    State2 = update_event_log(Ev, State1),
 
-    {reply, ok, State1#state{nodes=[], log=[Ev|State1#state.log]}};
+    {reply, ok, State2#state{nodes=[]}};
 
 %% @doc Receive matching event.
 handle_call({event,
         #stat{nodeid=NodeId, action=Action, resource=Res, tick=Tick}}, _,
-        #state{nodes=Nodes, event=#stat{action=Action, resource=Res},
-                log=Log}=State) ->
+        #state{nodes=Nodes, event=#stat{action=Action, resource=Res}}=State) ->
     %lager:info("~p: matching event: ~p, nodes_left: ~p", [Tick, Ev, Nodes]),
 
     % Update tick log:
-    State1 = update_tick_counter(Tick, State),
+    State1 = update_tick_log(Tick, State),
 
     {reply, ok, State1#state{nodes=lists:delete(NodeId, Nodes)}};
 
 handle_call({event, 
-        #stat{nodeid=NodeId, action=stats, tick=Tick, tx=TX, rx=RX}=Ev},
+        #stat{nodeid=NodeId, action=traffic, tick=Tick, tx=TX, rx=RX}=Ev},
         _, State) ->
     lager:info("~p: nodeid: ~p, tx: ~p, rx: ~p", [Tick, NodeId, TX, RX]),
 
-    {reply, ok, State#state{log=[Ev|State#state.log]}};
+    {reply, ok, update_traffic_log(Ev, State)};
 
 handle_call({event, _Ev}, _, State) ->
     {reply, ok, State}.
@@ -109,18 +115,59 @@ terminate(normal, _State) ->
 code_change(_, _, State) ->
     {ok, State}.
 
-update_tick_counter(Tick, #state{log=Log}=State) ->
-    TickLog0 = proplists:get_value(tick, Log, []),
-    Tick0 = proplists:get_value(Tick, TickLog0, 0),
-    Log1 = [
-        {tick, [{Tick, Tick0+1}|proplists:delete(Tick, TickLog0)]} |
-        proplists:delete(tick, Log)
-    ],
+%% =============================================================================
+%% Helpers
+%% =============================================================================
+
+update_traffic_log(#stat{nodeid=NodeId, tx=TX, rx=RX},
+        #state{log=Log}=State) ->
+    Log1 = Log#log{traffic=[{NodeId, TX+RX}|Log#log.traffic]},
+
+    State#state{log=Log1}.
+
+update_event_log(#stat{}=Ev, #state{log=Log}=State) ->
+    Log1 = Log#log{events=[Ev|Log#log.events]},
+
+    State#state{log=Log1}.
+
+update_tick_log(Tick, #state{log=Log}=State) ->
+    Ticks = Log#log.ticks,
+    TickCount = proplists:get_value(Tick, Ticks, 0),
+    Log1 = Log#log{
+        ticks = [{Tick, TickCount+1}|proplists:delete(Tick, Ticks)]
+    },
 
     State#state{log=Log1}.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
+update_traffic_log_test() ->
+    State0 = update_traffic_log(#stat{nodeid=foobar, tx=1, rx=2}, #state{}),
+    State1 = update_traffic_log(#stat{nodeid=qwerty, tx=2, rx=5}, State0),
+    
+    ?assertEqual(
+        [{qwerty, 7}, {foobar, 3}],
+        State1#state.log#log.traffic
+    ).
+
+update_event_log_test() ->
+    State0 = update_event_log(#stat{nodeid=foobar, action=random}, #state{}),
+    State1 = update_event_log(#stat{nodeid=qwerty, action=del}, State0),
+
+    ?assertMatch(
+        [#stat{nodeid=qwerty}, #stat{nodeid=foobar}],
+        State1#state.log#log.events
+    ).
+
+update_tick_log_test() ->
+    State0 = update_tick_log(10, #state{}),
+    State1 = update_tick_log(10, State0),
+
+    ?assertEqual(
+        [{10, 2}],
+        State1#state.log#log.ticks
+    ).
 
 workflow_test() ->
     % Setup:
@@ -140,19 +187,21 @@ workflow_test() ->
     ok = send_stat(#stat{action=del, resource={x,2}}),
     ok = send_stat(#stat{action=del, resource={a,1}, nodeid=b, tick=2}),
     ok = send_stat(#stat{action=del, resource={a,1}, nodeid=a, tick=69}),
+    ok = send_stat(#stat{action=traffic, nodeid=a, tx=2, rx=5}),
 
     ?assertMatch(
-        [
-            #stat{action=del, resource={a, 1}, nodeid=a, tick=69},
-            {tick, [{69, 1}, {2, 1}]}
-        ],
+        #log{
+            ticks = [{69, 1}, {2, 1}],
+            events = [#stat{action=del, tick=69}],
+            traffic = [{a, 7}]
+        },
         (state())#state.log
     ),
 
     ok = send_stat(#stat{action=stop, tick=71}),
     ?assertMatch(
-        [_, _, _],
-        (state())#state.log
+        [_, _],
+        (state())#state.log#log.events
     ),
 
     % Cleanup:

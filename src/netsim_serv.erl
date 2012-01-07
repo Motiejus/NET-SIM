@@ -209,7 +209,7 @@ handle_call(finalize, _, #state{tick=Tick, nodeid=NodeId, queues=Queues}=State) 
 
     %lager:info("~p sending stats", [NodeId]),
     ok = netsim_stats:send_stat(
-        #stat{nodeid=NodeId, tick=Tick, action=stats, tx=TX1, rx=RX1}
+        #stat{nodeid=NodeId, tick=Tick, action=traffic, tx=TX1, rx=RX1}
     ),
 
     {reply, ok, State};
