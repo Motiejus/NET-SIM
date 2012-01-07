@@ -24,3 +24,9 @@
     }).
 
 -define(NETSIM_PUBSUB, netsim_pubsub). % pg2 group name
+
+-record(log, {
+    events = [] :: list(),
+    traffic = [] :: list(),
+    ticks = [] :: list()
+}).

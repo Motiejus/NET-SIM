@@ -44,7 +44,25 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, Output) ->
     Res = {NodeId, _} = proplists:get_value(monitor_resource, Settings),
     netsim_stats:define_event(#stat{action=change, resource=Res, nodeid=NodeId}),
 
+    % Join stats group:
+    pg2:join(?NETSIM_PUBSUB, self()),
+
     netsim_clock_serv:start(), % Starts ticking
+
+    % Wait for 'finished' from stats:
+    receive
+        finished ->
+            lager:info("Finished stats."),
+            {ok, Dev} = file:open(Output, [write]),
+
+            Log = netsim_stats:log(),
+            % * Log#log.events - [S1, S2], S1 - converge event, S2 - route update
+            %   event;
+            % * Log#log.traffic - [{NodeId, TX+RX}];
+            % * Log#log.ticks - [{Tick, Count}], starts from send_event event.
+            lager:info("Log: ~p", [Log])
+    end,
+
     ok.
     %receive
     %    {done, TickLog} ->

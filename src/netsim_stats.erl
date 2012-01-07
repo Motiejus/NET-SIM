@@ -5,17 +5,11 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, send_stat/1, define_event/1, state/0, tick_log/0]).
+-export([start_link/0, send_stat/1, define_event/1, state/0, log/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
-
--record(log, {
-    events = [] :: list(),
-    traffic = [] :: list(),
-    ticks = [] :: list()
-}).
 
 -record(state, {
     event :: #stat{},
@@ -44,8 +38,8 @@ define_event(#stat{}=Event) ->
 state() ->
     gen_server:call(?MODULE, state).
 
-tick_log() ->
-    (state())#state.log#log.ticks.
+log() ->
+    (state())#state.log.
 
 %% =============================================================================
 
@@ -96,10 +90,8 @@ handle_call({event,
     {reply, ok, State1#state{nodes=lists:delete(NodeId, Nodes)}};
 
 handle_call({event, 
-        #stat{nodeid=NodeId, action=traffic, tick=Tick, tx=TX, rx=RX}=Ev},
+        #stat{nodeid=NodeId, action=traffic}=Ev},
         _, #state{nodes=Nodes}=State) ->
-    lager:info("~p: nodeid: ~p, tx: ~p, rx: ~p", [Tick, NodeId, TX, RX]),
-
     % Delete node from nodes list and update traffic log:
     State1 = update_traffic_log(
         Ev,
