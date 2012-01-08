@@ -40,74 +40,84 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
     % Join stats group:
     pg2:join(?NETSIM_PUBSUB, self()),
 
-    netsim_clock_serv:start(hd(SimulationList)), % Starts ticking
+    lists:foreach(
+        fun (N) ->
+            Simulation = lists:nth(N, SimulationList),
+            lager:info("Starting ~p-nth simulation (~p)", [N, Simulation]),
 
-    % Wait for 'finished' from stats:
-    receive
-        finished ->
-            lager:info("Finished stats."),
-            Log = netsim_stats:log(),
+            Postfix = "_" ++ hd(io_lib:format("~p", [N])) ++ ".txt",
 
-            % Write ticks log:
-            {ok, Dev0} = file:open(TicksFile, [write]),
-            TotalNodes = length(Log#log.traffic),
-            ok = io:fwrite(Dev0, "#tick count~n", []),
-            lists:foldr(
-                fun ({Tick, Count}, Acc) ->
-                        NewVal = (Count + Acc) / TotalNodes * 100,
-                        ok = io:fwrite(Dev0, "~p ~.2f~n", [Tick, NewVal]),
-                        Count + Acc
-                end,
-                0,
-                Log#log.ticks
-            ),
-            ok = file:close(Dev0),
+            netsim_clock_serv:start(Simulation), % Starts ticking
 
-            % Write total traffic log:
-            {ok, Dev1} = file:open(TotalTrafficFile, [write]),
-            ok = io:fwrite(Dev1, "#tick tx rx~n", []),
-            lists:foreach(
-                fun ({Tick, {TX, RX}}) ->
-                    ok = io:fwrite(Dev1, "~p ~p ~p~n", [Tick, TX, RX])
-                end,
-                Log#log.total_traffic
-            ),
-            ok = file:close(Dev1),
+            % Wait for 'finished' from stats:
+            receive
+                finished ->
+                    lager:info("Finished stats."),
+                    Log = netsim_stats:log(),
 
-            % Write traffic log:
-            {ok, Dev2} = file:open(TrafficFile, [write]),
-            ok = io:fwrite(Dev2, "#node_id tx rx~n", []),
-            MaxRxTx = lists:foldl(
-                fun ({Node, {TX, RX}}, MaxSoFar) ->
-                    io:fwrite(Dev2, "~p ~p ~p~n", [Node, TX, RX]),
-                    max(MaxSoFar, RX+TX)
-                end,
-                0,
-                Log#log.traffic
-            ),
-            ok = file:close(Dev2),
+                    % Write ticks log:
+                    {ok, Dev0} = file:open([TicksFile, Postfix], [write]),
+                    TotalNodes = length(Log#log.traffic),
+                    ok = io:fwrite(Dev0, "#tick count~n", []),
+                    lists:foldr(
+                        fun ({Tick, Count}, Acc) ->
+                                NewVal = (Count + Acc) / TotalNodes * 100,
+                                ok = io:fwrite(Dev0, "~p ~.2f~n", [Tick, NewVal]),
+                                Count + Acc
+                        end,
+                        0,
+                        Log#log.ticks
+                    ),
+                    ok = file:close(Dev0),
 
-            Intervals = 10,
-            % Split data to 10 intervals
-            Step = MaxRxTx div Intervals,
-            Histogram = lists:sort(lists:foldl(
-                    fun ({_Node, {TX, RX}}, Acc) ->
-                            Interval = trunc(Intervals*(TX + RX)/MaxRxTx) * Step,
-                            Num = proplists:get_value(Interval, Acc, 0),
-                            set_value(Interval, Num+1, Acc)
-                    end,
-                    [],
-                    Log#log.traffic
-                )
-            ),
+                    % Write total traffic log:
+                    {ok, Dev1} = file:open([TotalTrafficFile, Postfix], [write]),
+                    ok = io:fwrite(Dev1, "#tick tx rx~n", []),
+                    lists:foreach(
+                        fun ({Tick, {TX, RX}}) ->
+                            ok = io:fwrite(Dev1, "~p ~p ~p~n", [Tick, TX, RX])
+                        end,
+                        Log#log.total_traffic
+                    ),
+                    ok = file:close(Dev1),
 
-            % Write traffic histogram:
-            {ok, Dev3} = file:open(TrafficHistogramFile, [write]),
-            [ok = io:fwrite(Dev3, "~p ~p~n", [T,N]) || {T,N} <- Histogram],
-            ok = file:close(Dev3),
+                    % Write traffic log:
+                    {ok, Dev2} = file:open([TrafficFile, Postfix], [write]),
+                    ok = io:fwrite(Dev2, "#node_id tx rx~n", []),
+                    MaxRxTx = lists:foldl(
+                        fun ({Node, {TX, RX}}, MaxSoFar) ->
+                            io:fwrite(Dev2, "~p ~p ~p~n", [Node, TX, RX]),
+                            max(MaxSoFar, RX+TX)
+                        end,
+                        0,
+                        Log#log.traffic
+                    ),
+                    ok = file:close(Dev2),
 
-            lager:info("EOF")
-    end.
+                    Intervals = 10,
+                    % Split data to 10 intervals
+                    Step = MaxRxTx div Intervals,
+                    Histogram = lists:sort(lists:foldl(
+                            fun ({_Node, {TX, RX}}, Acc) ->
+                                    Interval = trunc(Intervals*(TX + RX)/MaxRxTx) * Step,
+                                    Num = proplists:get_value(Interval, Acc, 0),
+                                    set_value(Interval, Num+1, Acc)
+                            end,
+                            [],
+                            Log#log.traffic
+                        )
+                    ),
+
+                    % Write traffic histogram:
+                    {ok, Dev3} = file:open(TrafficHistogramFile, [write]),
+                    [ok = io:fwrite(Dev3, "~p ~p~n", [T,N1]) || {T,N1} <- Histogram],
+                    ok = file:close(Dev3),
+
+                    lager:info("EOF")
+            end
+        end,
+        lists:seq(1, length(SimulationList))
+    ).
 
 set_value(K, V, Proplist) ->
     [{K, V}|proplists:delete(K, Proplist)].
