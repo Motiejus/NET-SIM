@@ -59,11 +59,15 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
 
             % Write ticks log:
             {ok, Dev0} = file:open(TicksFile, [write]),
+            TotalNodes = length(Log#log.traffic),
             ok = io:fwrite(Dev0, "#tick count~n", []),
-            lists:foreach(
-                fun ({Tick, Count}) ->
-                    ok = io:fwrite(Dev0, "~p ~p~n", [Tick, Count])
+            lists:foldr(
+                fun ({Tick, Count}, Acc) ->
+                        NewVal = (Count + Acc) / TotalNodes * 100,
+                        ok = io:fwrite(Dev0, "~p ~.2f~n", [Tick, NewVal]),
+                        Count + Acc
                 end,
+                0,
                 Log#log.ticks
             ),
             ok = file:close(Dev0),
