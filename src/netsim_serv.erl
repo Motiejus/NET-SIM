@@ -246,7 +246,7 @@ handle_call({event, #event{action=add, resource=R}}, _From,
 
     % Propogate the new resource to neighbours:
     Msg = #route{nodeid=NodeId, route=Route, resource=R, action=change,
-        time=Tick},
+        tick=Tick},
     State1 = send_route_msg(Msg, State#state{table=RouteTable1}),
 
     {reply, ok, State1};
@@ -275,7 +275,7 @@ handle_call({event, #event{action=del, resource=R}}, _From,
 
     % Propogate route deletion to neighbours:
     Msg =
-        #route{nodeid=NodeId, route=Route, resource=R, action=del, time=Tick},
+        #route{nodeid=NodeId, route=Route, resource=R, action=del, tick=Tick},
     State1 = send_route_msg(Msg, State#state{table=RouteTable1}),
 
     {reply, ok, State1};
@@ -771,12 +771,12 @@ tick_test() ->
     ),
 
     % Add resource {a, 1} to 'a' node:
-    send_event(#event{resource={a, 1}, action=add, time=0}),
+    send_event(#event{resource={a, 1}, action=add, tick=0}),
     ?assertMatch(
         [{{a, b, _, _}, [{#route{action=change, route={[a], _}}, _}]}],
         (state(a))#state.queues
     ),
-    % Msg time to send = 21, so we need to do 21 ticks: 
+    % Msg tick to send = 21, so we need to do 21 ticks: 
     [tick(a, Tick) || Tick <- lists:seq(1, 21)],
     ?assertMatch(
         [{{a, b, _, {416, 0}}, []}], 
