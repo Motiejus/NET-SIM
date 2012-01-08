@@ -298,8 +298,10 @@ code_change(_, _, State) ->
 %% Updates latency and price of each route before inserting in queue.
 -spec send_route_msg(#route{}, #state{}) -> #state{}.
 send_route_msg(#route{action=Action, route=Route}=Msg,
-        #state{price=Price, queues=Queues}=State) ->
+        #state{price=Price, queues=Queues, nodeid=NodeId}=State) ->
     % Insert new queue item to each queue.
+    {Path, _} = Route,
+    %lager:info("nodeid: ~p path: ~p, action: ~p", [NodeId, Path, Action]),
     Queues1 = lists:map(
         fun ({{_From, _To, Metrics, _Traffic}=Link, Queue}) ->
             Latency = proplists:get_value(latency, Metrics),
@@ -372,8 +374,24 @@ change_route(
     Routes2 = 
         case ((not has_loop(NodeId, NewRoute0)) and (Latency =< MaxL)) of
             true ->
-                % Find a new optimal route:
-                update_optimal([NewRoute1 | Routes1]);
+                Routes3 = update_optimal([NewRoute1 | Routes1]),
+                BestRoute1 = hd(Routes3),
+                BestRoute0 = best_route(Routes0),
+                % Check if new best route doesn't have the same lenght and
+                % price as the new one, if yes - keep the old one:
+                case (BestRoute0 /= undefined) and
+                (BestRoute0 /= ExistingRoute) and (BestRoute1 ==
+                        NewRoute1) of
+                    true ->
+                        case equal_price_len(BestRoute0, BestRoute1) of
+                            true ->
+                                Routes0;
+                            false ->
+                                Routes3
+                        end;
+                    false ->
+                        Routes3
+                end;
             false ->
                 Routes1
         end,
@@ -384,6 +402,7 @@ change_route(
     send_msg_after_update(Res, Routes2, Routes0, State1).
 
 %% @doc Sorts routes in a way that the best route is head of the list.
+%% If 
 -spec update_optimal([netsim_types:route()]) -> [netsim_types:route()].
 update_optimal(Routes) ->
     lists:sort(
@@ -392,6 +411,27 @@ update_optimal(Routes) ->
         end,
         Routes
     ).
+
+%% @doc Returns true if both routes have the same length and price, but are not
+%% equal.
+-spec equal_price_len(undefined | netsim_types:route(),
+    netsim_types:route()) -> boolean().
+equal_price_len(undefined, _) ->
+    false;
+
+equal_price_len({Path1, {_, Price}}, {Path2, {_, Price}}) ->
+    (length(Path1) == length(Path2)) and (Path1 /= Path2);
+
+equal_price_len(_, _) ->
+    false.
+
+%% @doc Returns best route from route() list.
+-spec best_route([netsim_types:route()]) -> netsim_types:rout() | undefined.
+best_route([]) ->
+    undefined;
+
+best_route([R|_]) ->
+    R.
 
 %% @doc Sends route update messages to all neightbours if optimal route has
 %% changed (sending is done by adding msgs to queue).
@@ -452,7 +492,9 @@ find_route({Path, _}, Routes) ->
     case Res of
         [] -> undefined;
         [R] -> R;
-        _ -> throw(inconsistent_route_table)
+        Wtf -> 
+            lager:info("PIZE: ~p", [Wtf]),
+            throw({inconsistent_route_table, Wtf})
     end.
 
 %% @doc Checks if given Route doesn't have a loop, i.e. there is not nodeid in
@@ -487,6 +529,7 @@ send_route_msg_test() ->
     Link = {a, b, [{latency, 20}, {bandwidth, 64}], {0, 0}},
     Queues = [{Link, []}],
 
+    ?debugVal(wtf),
     #state{queues=Queues1} = send_route_msg(Msg, #state{queues=Queues}),
 
     ?assertMatch(
