@@ -69,8 +69,8 @@ send_tick(timeout, State=#state{tick=Time}) ->
     [netsim_serv:tick(Node, Time) || Node <- Nodes],
     {next_state, node_ack, State#state{nodes=Nodes, done=true}, 0}.
 
-node_ack(timeout, #state{nodes=[], done=true}=State) ->
-    {next_state, finalize, State, 0};
+node_ack(timeout, #state{nodes=[], done=true, tick=T}=State) ->
+    {next_state, finalize, State#state{tick=T+1}, 0};
 
 node_ack(timeout, State) ->
     {next_state, node_ack, State};
@@ -111,7 +111,7 @@ init([]) ->
 
 %% for debugging
 handle_sync_event(state, _From, StateName, StateData) ->
-    {reply, StateName, StateName, StateData}.
+    {reply, {StateName, StateData}, StateName, StateData}.
 
 handle_event(event, statename, State) ->
     {stop, undefined, State}.
@@ -140,8 +140,16 @@ workflow_test() ->
     start(#event{action=add}),
     timer:sleep(10),
 
-    ?assertEqual(
-        wait_for_job,
+    ?assertMatch(
+        {wait_for_job, #state{tick=2, event=#event{action=add}}},
+        state()
+    ),
+
+    start(#event{action=del}),
+    timer:sleep(10),
+
+    ?assertMatch(
+        {wait_for_job, #state{tick=3, event=#event{action=del}}},
         state()
     ),
 
