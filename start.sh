@@ -8,13 +8,19 @@ run_sim() {
         -s init stop -noshell -noinput || exit 1
 }
 
+echo -n "Compiling... "
+make -s || exit 1
+echo "done"
+echo -n "Generating graphs..."
 ./generator/graph.py || exit 1
-./rebar compile || exit 1
+echo "done"
 for dir in res/*; do
+    echo -n "Running simulation in $dir... "
     run_sim $dir
+    echo "done"
+    echo -n "Drawing plot ... "
+    gnuplot -e " call \"generator/ticks.gp\" \"${dir}/ticks.png\" \"${dir}/ticks.txt\"" || exit 1
+    echo -n "done"
+    echo "Plot written to ${dir}/ticks.png"
 done
 
-#echo -n "Drawing plot ... "
-#gnuplot -e ' call "generator/time_percent.gp" "res/output.png" "res/output.txt"' || exit 1
-#echo "done"
-#echo "Plot written to res/output.png"

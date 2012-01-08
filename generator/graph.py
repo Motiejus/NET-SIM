@@ -11,13 +11,14 @@ RES_DIR = path.join(PROJECT_DIR, 'res')
 
 def write_graph_data(graph):
     DIR = path.join(RES_DIR, '%dx%d' % (graph.dimensions, graph.dimensions))
-    makedirs(DIR)
+    try:
+        makedirs(DIR)
+    except OSError: # directory probably exists, overwriting
+        pass
     with open(path.join(DIR, 'nodelist.txt'), 'w') as f:
         f.write(graph.nodefile())
-        f.close()
     with open(path.join(DIR, 'channels.txt'), 'w') as f:
         f.write(graph.chansfile())
-        f.close()
     with open(path.join(DIR, 'simulation.txt'), 'w') as f:
         f.write(graph.simulation_file())
     with open(path.join(DIR, 'settings.txt'), 'w') as f:
