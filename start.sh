@@ -18,9 +18,9 @@ for dir in res/*; do
     echo -n "Running simulation in $dir... "
     run_sim $dir
     echo "done"
-    echo -n "Drawing plot ... "
+    echo -n "Drawing plots ... "
     gnuplot -e " call \"generator/ticks.gp\" \"${dir}/ticks.png\" \"${dir}/ticks.txt\"" || exit 1
+    gnuplot -e " call \"generator/total_traffic.gp\" \"${dir}/total_traffic.png\" \"${dir}/total_traffic.txt\"" || exit 1
     echo -n "done"
-    echo "Plot written to ${dir}/ticks.png"
+    echo "Plots written to ${dir}/ticks.png, ${dir}/total_traffic.png"
 done
-
