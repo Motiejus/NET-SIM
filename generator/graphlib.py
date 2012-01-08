@@ -73,12 +73,13 @@ class Node:
             node2.links.update({self : (latency, bandwidth)})
 
 class Graph:
-    def __init__(self, dimensions, latency, bandwidth):
+    def __init__(self, dimensions, latency, bandwidth, tight=False):
         self.dimensions = dimensions
         self.latency = lambda: random.randint(latency[0], latency[1])
         self.bandwidth = lambda: random.randint(bandwidth[0], bandwidth[1])
         self.price = lambda: 1
         self.nodes = [None for x in range(dimensions)]
+        self.tight = tight
         self.generate()
 
     def generate(self):
@@ -95,6 +96,12 @@ class Graph:
                 if i != d - 1: todo.append(( 1,  0,))
                 if j != 0:     todo.append(( 0, -1,))
                 if j != d - 1: todo.append(( 0,  1,))
+
+                if self.tight:
+                    if i != 0 and j != 0:         todo.append((-1, -1,))
+                    if i != 0 and j != d - 1:     todo.append((-1,  1,))
+                    if i != d - 1 and j != 0:     todo.append(( 1, -1,))
+                    if i != d - 1 and j != d - 1: todo.append(( 1,  1,))
 
                 for (x, y) in todo:
                     self.nodes[i][j].link(self.nodes[i+x][j+y],
