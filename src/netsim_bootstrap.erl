@@ -3,13 +3,13 @@
 
 -include("include/netsim.hrl").
 
--export([init/7]).
+-export([init/8]).
 
 %% @doc Reads data from files and creates new nodes setup.
--spec init(list(), list(), list(), list(), list(), list(), list()) ->
+-spec init(list(), list(), list(), list(), list(), list(), list(), list()) ->
     no_return().
 init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
-        TotalTrafficFile, TrafficFile) ->
+        TotalTrafficFile, TrafficFile, TrafficHistogramFile) ->
     % NodeList :: {NodeId, Price}
     {ok, NodesList} = file:consult(NodesFiles),
     % LinksList :: [{From, To, Latency, Bandwith}]
@@ -86,13 +86,37 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
             % Write traffic log:
             {ok, Dev2} = file:open(TrafficFile, [write]),
             ok = io:fwrite(Dev2, "#node_id tx rx~n", []),
-            lists:foreach(
-                fun ({Node, {TX, RX}}) ->
-                    ok = io:fwrite(Dev2, "~p ~p ~p~n", [Node, TX, RX])
+            MaxRxTx = lists:foldl(
+                fun ({Node, {TX, RX}}, MaxSoFar) ->
+                    io:fwrite(Dev2, "~p ~p ~p~n", [Node, TX, RX]),
+                    max(MaxSoFar, RX+TX)
                 end,
+                0,
                 Log#log.traffic
             ),
             ok = file:close(Dev2),
 
+            Intervals = 10,
+            % Split data to 10 intervals
+            Step = MaxRxTx div Intervals,
+            Histogram = lists:sort(lists:foldl(
+                    fun ({_Node, {TX, RX}}, Acc) ->
+                            Interval = trunc(Intervals*(TX + RX)/MaxRxTx) * Step,
+                            Num = proplists:get_value(Interval, Acc, 0),
+                            set_value(Interval, Num+1, Acc)
+                    end,
+                    [],
+                    Log#log.traffic
+                )
+            ),
+
+            % Write traffic histogram:
+            {ok, Dev3} = file:open(TrafficHistogramFile, [write]),
+            [ok = io:fwrite(Dev3, "~p ~p~n", [T,N]) || {T,N} <- Histogram],
+            ok = file:close(Dev3),
+
             lager:info("EOF")
     end.
+
+set_value(K, V, Proplist) ->
+    [{K, V}|proplists:delete(K, Proplist)].

@@ -4,7 +4,7 @@ run_sim() {
     DIR=$1
     erl -config priv/silent_run.config -pz ebin/ -pz deps/*/ebin/ -boot start_sasl -s netsim start_app \
         ${DIR}/nodelist.txt ${DIR}/channels.txt ${DIR}/simulation.txt ${DIR}/settings.txt \
-        ${DIR}/ticks.txt ${DIR}/total_traffic.txt ${DIR}/traffic.txt \
+        ${DIR}/ticks.txt ${DIR}/total_traffic.txt ${DIR}/traffic.txt ${DIR}/traffic_histogram.txt \
         -s init stop -noshell -noinput || exit 1
 }
 
@@ -28,6 +28,7 @@ for dir in $WORKDIR; do
     echo -n "Drawing plots ... "
     gnuplot -e " call \"generator/ticks.gp\" \"${dir}/ticks.svg\" \"${dir}/ticks.txt\"" || exit 1
     gnuplot -e " call \"generator/total_traffic.gp\" \"${dir}/total_traffic.svg\" \"${dir}/total_traffic.txt\"" || exit 1
+    gnuplot -e " call \"generator/traffic_histogram.gp\" \"${dir}/traffic_histogram.svg\" \"${dir}/traffic_histogram.txt\"" || exit 1
     echo -n "done"
-    echo "Plots written to ${dir}/ticks.svg, ${dir}/total_traffic.svg"
+    echo "Plots written to ${dir}/ticks.svg, ${dir}/total_traffic.svg, ${dir}/traffic_histogram.svg"
 done

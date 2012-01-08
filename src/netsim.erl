@@ -15,11 +15,12 @@ start_app() ->
         filename:join(["priv", "settings.txt"]),
         filename:join(["res", "ticks.txt"]),
         filename:join(["res", "total_traffic.txt"]),
-        filename:join(["res", "traffic.txt"])
+        filename:join(["res", "traffic.txt"]),
+        filename:join(["res", "traffic_histogram.txt"])
     ]).
 
 start_app(Args=[NodeList, Channels, Simulation, Settings, Ticks, TotalTraffic,
-        Traffic]) ->
+        Traffic, TrafficHistogram]) ->
     ok = application:start(lager),
     ok = application:start(netsim),
 
@@ -27,7 +28,7 @@ start_app(Args=[NodeList, Channels, Simulation, Settings, Ticks, TotalTraffic,
     lager:info("Files: ~p", [Args]),
     netsim_stats:define_event(#stat{action=change, resource={kedainiai, 1}}),
     netsim_bootstrap:init(NodeList, Channels, Simulation, Settings, Ticks,
-        TotalTraffic, Traffic).
+        TotalTraffic, Traffic, TrafficHistogram).
 
 start(_, _) ->
     {ok, _Pid} = netsim_sup:start_link().
