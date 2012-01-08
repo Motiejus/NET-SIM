@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 run_sim() {
     DIR=$1
@@ -11,10 +11,17 @@ run_sim() {
 echo -n "Compiling... "
 make -s || exit 1
 echo "done"
-echo -n "Generating graphs..."
-./generator/graph.py || exit 1
-echo "done"
-for dir in res/*; do
+
+if [[ "$1" == "priv" ]]; then
+    WORKDIR="priv"
+else
+    WORKDIR=res/*
+    echo -n "Generating graphs..."
+    ./generator/graph.py || exit 1
+    echo "done"
+fi
+
+for dir in $WORKDIR; do
     echo -n "Running simulation in $dir... "
     run_sim $dir
     echo "done"
