@@ -64,32 +64,32 @@ if __name__ == "__main__":
         write_graph_data(g, "8x8_t_rand")
 
 
-    # 100x100 nice order, all fixed
-    with mkgraph(dimensions=100, latency=(5, 5), bandwidth=(100, 100)) as g:
-        write_graph_data(g, "100x100_a_fix")
+    ## 100x100 nice order, all fixed
+    #with mkgraph(dimensions=100, latency=(5, 5), bandwidth=(100, 100)) as g:
+    #    write_graph_data(g, "100x100_a_fix")
 
-    # 100x100 modified order, all fixed
-    with mkgraph(dimensions=100, latency=(5, 5), bandwidth=(100, 100)) as g:
-        g.nodes[0][0].link(g.nodes[20][30], latency=8, bandwidth=500)
-        g.nodes[10][0].link(g.nodes[40][0], latency=8, bandwidth=500)
-        write_graph_data(g, "100x100_b_fix")
+    ## 100x100 modified order, all fixed
+    #with mkgraph(dimensions=100, latency=(5, 5), bandwidth=(100, 100)) as g:
+    #    g.nodes[0][0].link(g.nodes[20][30], latency=8, bandwidth=500)
+    #    g.nodes[10][0].link(g.nodes[40][0], latency=8, bandwidth=500)
+    #    write_graph_data(g, "100x100_b_fix")
 
-    # 100x100 tight order, all fixed
-    with mkgraph(dimensions=100, latency=(5, 5), bandwidth=(100, 100),
-            tight=True) as g:
-        write_graph_data(g, "100x100_a_fix")
+    ## 100x100 tight order, all fixed
+    #with mkgraph(dimensions=100, latency=(5, 5), bandwidth=(100, 100),
+    #        tight=True) as g:
+    #    write_graph_data(g, "100x100_a_fix")
 
-    # 100x100 nice order, some randomness
-    with mkgraph(dimensions=100, latency=(2, 5), bandwidth=(50, 500)) as g:
-        write_graph_data(g, "100x100_a_rand")
+    ## 100x100 nice order, some randomness
+    #with mkgraph(dimensions=100, latency=(2, 5), bandwidth=(50, 500)) as g:
+    #    write_graph_data(g, "100x100_a_rand")
 
-    # 100x100 modified order, some randomness
-    with mkgraph(dimensions=100, latency=(2, 5), bandwidth=(50, 500)) as g:
-        g.nodes[0][0].link(g.nodes[20][30], latency=8, bandwidth=500)
-        g.nodes[10][0].link(g.nodes[40][0], latency=8, bandwidth=500)
-        write_graph_data(g, "100x100_m_rand")
+    ## 100x100 modified order, some randomness
+    #with mkgraph(dimensions=100, latency=(2, 5), bandwidth=(50, 500)) as g:
+    #    g.nodes[0][0].link(g.nodes[20][30], latency=8, bandwidth=500)
+    #    g.nodes[10][0].link(g.nodes[40][0], latency=8, bandwidth=500)
+    #    write_graph_data(g, "100x100_m_rand")
 
-    # 100x100 tight order, some randomness
-    with mkgraph(dimensions=100, latency=(2, 5), bandwidth=(50, 500),
-            tight=True) as g:
-        write_graph_data(g, "100x100_t_rand")
+    ## 100x100 tight order, some randomness
+    #with mkgraph(dimensions=100, latency=(2, 5), bandwidth=(50, 500),
+    #        tight=True) as g:
+    #    write_graph_data(g, "100x100_t_rand")
