@@ -17,7 +17,7 @@ def run():
 
     # 10x10 higher speed, all fixed
     with Graph(dimensions=10, latency=(5, 5), bandwidth=(512, 512)) as g:
-	write_graph_data(g, "higher_speed")
+        write_graph_data(g, "higher_speed")
 
     # 10x10 more links , all fixed
     with Graph(dimensions=10, latency=(5, 5), bandwidth=(128, 128),tight=True) as g:
