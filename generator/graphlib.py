@@ -23,7 +23,7 @@ Produces these text files:
 """
 
 random.seed("yadda") # this makes `random` function deterministic
-ntpltpl = "{aXXXxXXX, 1}." # node template
+ntpltpl = "{aXXXxXXX, 1}" # node template
 ltpltpl = "{aXXXxXXX, aXXXxXXX, %d, %d}." # link template
 
 def ntpl(dimensions): # node template
@@ -63,7 +63,7 @@ class Node:
         return "(%02d %02d) [%d links]" % (self.i, self.j, len(self.links))
 
     def ify(self):
-        return self.ntpl % (self.i, self.j)
+        return self.ntpl % (self.i, self.j) + "."
 
     def link(self, node2, latency, bandwidth):
         """Links two nodes"""
@@ -106,6 +106,7 @@ class Graph:
             {a0x1, 10}.
         """
         return "\n".join([n.ify() for nl in self.nodes for n in nl])
+
     def chansfile(self):
         """Outputs channels in this format:
             {a0x0, a0x1, 20, 20}.
@@ -114,8 +115,14 @@ class Graph:
         """
         return "\n".join([n.chans() for nl in self.nodes for n in nl])
 
-class TestNodeCase(unittest.TestCase):
+    def simulation_file(self):
+        return "{'event',  1, add, %s}." % ntpl(self.dimensions) % (0, 0)
 
+    def settings_file(self):
+        return "{max_latency, 20000}.\n" \
+                "{monitor_resource, %s}." % ntpl(self.dimensions) % (0, 0)
+
+class TestNodeCase(unittest.TestCase):
     def test_2x2_mesh(self):
         graph = Graph(dimensions=2, latency=(5,5), bandwidth=(10,10))
         nodes = graph.nodes

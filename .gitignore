@@ -3,3 +3,5 @@ ebin/*
 .*.swp
 erl_crash.dump
 .eunit/*
+*.pyc
+res/*
