@@ -17,7 +17,7 @@
 -record(state, {
         tick = 1 :: pos_integer(),
         nodes = [] :: [netsim_types:nodeid()], % Nodes that did not send ack
-        event :: #'event'{},
+        event :: #event{},
         done = false % Whether all nodes are done with their work
     }
 ).
@@ -76,7 +76,7 @@ node_ack(timeout, State) ->
     {next_state, node_ack, State};
 
 node_ack({node_ack, N, true},
-        State=#state{tick=Tick, nodes=[N], done=true, event=[]}) ->
+        State=#state{tick=Tick, nodes=[N], done=true}) ->
     %lager:info("Final deleted node ~p", [N]),
     % Send to all nodes finalize msg:
     [netsim_serv:finalize(Node) || Node <- netsim_sup:list_nodes()],
@@ -88,11 +88,11 @@ node_ack({node_ack, N, true},
     {next_state, finalize, State#state{nodes=[]}, 0};
 
 node_ack({node_ack, N, _}, State=#state{nodes=[N], tick=T}) ->
-    %lager:info("Got answer from last node ~p, tick: ~p", [N, T]),
+    %lager:info("Got answer from last node ~p, tick: ~p, done: ~p", [N, T, D1]),
     {next_state, send_tick, State#state{nodes=[], tick=T+1}, 0};
 
 node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2, tick=_T}) ->
-    %lager:info("Got answer from node ~p, tick: ~p~n", [N, T]),
+    %lager:info("Got answer from node ~p, tick: ~p done: ~p~n", [N, _T, D2]),
     {next_state, node_ack, State#state{
             done = D1 and D2,
             nodes=lists:delete(N, Nodes)

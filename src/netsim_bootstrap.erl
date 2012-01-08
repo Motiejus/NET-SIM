@@ -19,15 +19,6 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
     % LatencyFile :: MaxLatency
     {ok, Settings} = file:consult(SettingsFile),
 
-    % Send SimulationFile to clock_serv
-    Rcpt = self(),
-    netsim_clock_serv:initialize(
-        {
-            SimulationList,
-            fun(Res) -> Rcpt ! {done, Res} end
-        }
-    ),
-
     % Start nodes without channels:
     MaxLatency = proplists:get_value(max_latency, Settings),
     [netsim_sup:add_node(Id, Price, MaxLatency) || {Id, Price} <- NodesList],
@@ -49,7 +40,7 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
     % Join stats group:
     pg2:join(?NETSIM_PUBSUB, self()),
 
-    netsim_clock_serv:start(), % Starts ticking
+    netsim_clock_serv:start(hd(SimulationList)), % Starts ticking
 
     % Wait for 'finished' from stats:
     receive
