@@ -33,13 +33,6 @@ def ltpl(dimensions):
 
 
 class Node:
-    def __lt__(self, node2):
-        """Nodes are compared against their fake indices. (0,0) node
-        has index 0, (0,1) will have index 1, and so on. Index number is
-        equivalent to C pointer position in a double dimensional array
-        """
-        return [self.i, self.j] < [node2.i, node2.j]
-
     def __init__(self, dimensions, i, j, price):
         (self.ntpl, self.ltpl) = (ntpl(dimensions), ltpl(dimensions))
         (self.i, self.j, self.price, self.links) = (i, j, price, {})
@@ -71,6 +64,14 @@ class Node:
             self.links.update({node2 : (latency, bandwidth)})
         if self not in node2.links.keys():
             node2.links.update({self : (latency, bandwidth)})
+
+    def __lt__(self, node2):
+        """Nodes are compared against their fake indices. (0,0) node
+        has index 0, (0,1) will have index 1, and so on. Index number is
+        equivalent to C pointer position in a double dimensional array
+        """
+        return [self.i, self.j] < [node2.i, node2.j]
+
 
 class Graph:
     def __init__(self, dimensions, latency, bandwidth, tight=False):
@@ -128,6 +129,13 @@ class Graph:
     def settings_file(self):
         return "{max_latency, 20000}.\n" \
                 "{monitor_resource, %s}." % ntpl(self.dimensions) % (0, 0)
+
+    # with Graph(...) as g:
+    def __enter__(self):
+        return self
+    def __exit__(self, type, value, traceback):
+        pass
+
 
 class TestNodeCase(unittest.TestCase):
     def test_2x2_mesh(self):
