@@ -124,7 +124,9 @@ class Graph:
         return "\n".join([n.chans() for nl in self.nodes for n in nl])
 
     def simulation_file(self):
-        return "{'event',  1, add, %s}." % ntpl(self.dimensions) % (0, 0)
+        Node = ntpl(self.dimensions) % (0, 0)
+        return "{'event', 1, add, %s}.\n"\
+                "{'event', 2, del, %s}." % (Node, Node)
 
     def settings_file(self):
         return "{max_latency, 20000}.\n" \
