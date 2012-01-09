@@ -32,7 +32,7 @@ for dir in $WORKDIR; do
     gnuplot -e " call \"generator/total_traffic.gp\" \"${dir}/total_traffic.png\" \"${dir}/total_traffic_1.txt\"" || exit 1
     gnuplot -e " call \"generator/total_traffic.gp\" \"${dir}/total_traffic.png\" \"${dir}/total_traffic_2.txt\"" || exit 1
     gnuplot -e " call \"generator/traffic_histogram.gp\" \"${dir}/traffic_histogram_announce.png\" \"${dir}/traffic_histogram_1.txt\"" || exit 1
-    gnuplot -e " call \"generator/traffic_histogram.gp\" \"${dir}/traffic_histogram_announce.png\" \"${dir}/traffic_histogram_2.txt\"" || exit 1
+    gnuplot -e " call \"generator/traffic_histogram.gp\" \"${dir}/traffic_histogram_denounce.png\" \"${dir}/traffic_histogram_2.txt\"" || exit 1
 
     echo -n "done"
     echo "Plots written to ${dir}/ticks.svg, ${dir}/total_traffic.svg, ${dir}/traffic_histogram.svg"
