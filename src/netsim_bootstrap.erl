@@ -118,7 +118,7 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
                     ),
 
                     % Write traffic histogram:
-                    {ok, Dev3} = file:open(TrafficHistogramFile, [write]),
+                    {ok, Dev3} = file:open([TrafficHistogramFile, Postfix], [write]),
                     [ok = io:fwrite(Dev3, "~p ~p~n", [T,N1]) || {T,N1} <- Histogram],
                     ok = file:close(Dev3),
 
