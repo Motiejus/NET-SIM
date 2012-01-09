@@ -19,16 +19,30 @@ start_app() ->
         filename:join(["res", "traffic_histogram.txt"])
     ]).
 
-start_app(Args=[NodeList, Channels, Simulation, Settings, Ticks, TotalTraffic,
-        Traffic, TrafficHistogram]) ->
-    ok = application:start(lager),
-    ok = application:start(netsim),
+start_app(Args=[NodeListFile, ChannelsFile, SimulationFile, SettingsFile,
+        TicksFile, TotalTrafficFile, TrafficFile, TrafficHistogramFile]) ->
 
-    % Test data:
-    lager:info("Files: ~p", [Args]),
-    netsim_stats:define_event(#stat{action=change, resource={kedainiai, 1}}),
-    netsim_bootstrap:init(NodeList, Channels, Simulation, Settings, Ticks,
-        TotalTraffic, Traffic, TrafficHistogram).
+    ok = application:start(lager),
+    % SimulationFile :: {Time, Queueid, Resource}
+    {ok, SimulationList} = file:consult(SimulationFile),
+    lists:foreach(
+        fun (N) ->
+                Simulations = lists:sublist(SimulationList, N),
+
+                ok = application:start(netsim),
+                % Test data:
+                lager:info("Files: ~p", [Args]),
+                netsim_stats:define_event(#stat{action=change, resource={kedainiai, 1}}),
+                netsim_bootstrap:init(NodeListFile, ChannelsFile,
+                    {Simulations, N}, SettingsFile, TicksFile,
+                    TotalTrafficFile, TrafficFile, TrafficHistogramFile),
+
+                ok = application:stop(netsim),
+                lager:info("Running apps: ~p", [application:which_applications()]),
+                timer:sleep(300)
+        end,
+        lists:seq(1, length(SimulationList))
+    ).
 
 start(_, _) ->
     {ok, _Pid} = netsim_sup:start_link().
