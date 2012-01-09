@@ -26,9 +26,13 @@ for dir in $WORKDIR; do
     run_sim $dir
     echo "done"
     echo -n "Drawing plots ... "
-    #gnuplot -e " call \"generator/ticks.gp\" \"${dir}/ticks.svg\" \"${dir}/ticks.txt\"" || exit 1
-    #gnuplot -e " call \"generator/total_traffic.gp\" \"${dir}/total_traffic.svg\" \"${dir}/total_traffic.txt\"" || exit 1
-    #gnuplot -e " call \"generator/traffic_histogram.gp\" \"${dir}/traffic_histogram.svg\" \"${dir}/traffic_histogram.txt\"" || exit 1
+
+    gnuplot -e " call \"generator/announce.gp\" \"${dir}/ticks_announce.png\" \"${dir}/ticks.txt_1.txt\"" || exit 1
+    gnuplot -e " call \"generator/denounce.gp\" \"${dir}/ticks_denounce.png\" \"${dir}/ticks.txt_2.txt\"" || exit 1
+    gnuplot -e " call \"generator/total_traffic.gp\" \"${dir}/total_traffic.png\" \"${dir}/total_traffic.txt\"" || exit 1
+    gnuplot -e " call \"generator/traffic_histogram.gp\" \"${dir}/traffic_histogram_announce.png\" \"${dir}/traffic_histogram_1.txt\"" || exit 1
+    gnuplot -e " call \"generator/traffic_histogram.gp\" \"${dir}/traffic_histogram_announce.png\" \"${dir}/traffic_histogram_2.txt\"" || exit 1
+
     echo -n "done"
     echo "Plots written to ${dir}/ticks.svg, ${dir}/total_traffic.svg, ${dir}/traffic_histogram.svg"
 done
