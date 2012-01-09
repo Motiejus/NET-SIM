@@ -342,7 +342,9 @@ delete_route(
     % Delete it:
     Routes1 = lists:delete(ExistingRoute, Routes0),
     % Find a new optimal:
-    Routes2 = update_optimal(Routes1),
+    % OPTIMIZATION: delete all routes;-)
+    %Routes2 = update_optimal(Routes1),
+    Routes2 = [],
     % Update state:
     RouteTable1 =
         case Routes2 of
