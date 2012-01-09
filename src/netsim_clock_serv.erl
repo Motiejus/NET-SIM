@@ -87,7 +87,7 @@ node_ack({node_ack, N, true},
 
     {next_state, finalize, State#state{nodes=[]}, 0};
 
-node_ack({node_ack, N, _}, State=#state{nodes=[N], tick=T}) ->
+node_ack({node_ack, N, D1}, State=#state{nodes=[N], tick=T}) ->
     %lager:info("Got answer from last node ~p, tick: ~p, done: ~p", [N, T, D1]),
     {next_state, send_tick, State#state{nodes=[], tick=T+1}, 0};
 
@@ -99,8 +99,8 @@ node_ack({node_ack, N, D1}, State=#state{nodes=Nodes, done=D2, tick=_T}) ->
         }
     }.
 
-finalize(timeout, State) ->
-    {next_state, wait_for_job, State}.
+finalize(timeout, #state{tick=Tick}=State) ->
+    {next_state, wait_for_job, State#state{tick=Tick+1}}.
 
 %% =============================================================================
 %% gen_fsm callbacks

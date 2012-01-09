@@ -86,7 +86,7 @@ handle_call(
 
 %% @doc Receive matching event.
 handle_call({event,
-        #stat{nodeid=NodeId, action=Action, resource=Res, tick=Tick}}, _,
+        #stat{nodeid=NodeId, action=Action, resource=Res, tick=Tick}=Ev}, _,
         #state{nodes=Nodes, event=#stat{action=Action, resource=Res}}=State) ->
     %lager:info("~p: matching event: ~p, nodes_left: ~p", [Tick, Ev, Nodes]),
 

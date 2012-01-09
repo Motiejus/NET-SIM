@@ -34,8 +34,7 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
         LinksList
     ),
 
-    Res = {NodeId, _} = proplists:get_value(monitor_resource, Settings),
-    netsim_stats:define_event(#stat{action=change, resource=Res, nodeid=NodeId}),
+    {NodeId, _} = proplists:get_value(monitor_resource, Settings),
 
     % Join stats group:
     pg2:join(?NETSIM_PUBSUB, self()),
@@ -44,6 +43,16 @@ init(NodesFiles, LinksFile, SimulationFile, SettingsFile, TicksFile,
         fun (N) ->
             Simulation = lists:nth(N, SimulationList),
             lager:info("Starting ~p-nth simulation (~p)", [N, Simulation]),
+
+            Res = Simulation#event.resource,
+            SimulationAction =
+                case Simulation#event.action of
+                    add -> change;
+                    del -> del
+                end,
+
+            %netsim_stats:define_event(#stat{action=change, resource=Res, nodeid=NodeId}),
+            netsim_stats:define_event(#stat{action=SimulationAction, resource=Res}),
 
             Postfix = "_" ++ hd(io_lib:format("~p", [N])) ++ ".txt",
 

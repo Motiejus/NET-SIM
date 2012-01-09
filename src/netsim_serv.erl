@@ -265,7 +265,7 @@ handle_call({event, #event{action=del, resource=R}}, _From,
     % have to be deleted:
     Route =
         case proplists:get_value(R, RouteTable0) of
-            [{[NodeId], _}]=Route0 -> Route0;
+            [{[NodeId], _}=Route0] -> Route0;
             _Route0 ->
                 throw({inconsistent_route_table, {del, R},
                         RouteTable0})
@@ -300,7 +300,6 @@ code_change(_, _, State) ->
 send_route_msg(#route{action=Action, route=Route}=Msg,
         #state{price=Price, queues=Queues, nodeid=_NodeId}=State) ->
     % Insert new queue item to each queue.
-    {Path, _} = Route,
     %lager:info("nodeid: ~p path: ~p, action: ~p", [NodeId, Path, Action]),
     Queues1 = lists:map(
         fun ({{_From, _To, Metrics, _Traffic}=Link, Queue}) ->

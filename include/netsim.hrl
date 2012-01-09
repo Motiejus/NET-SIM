@@ -10,7 +10,7 @@
     action :: change | del,
     nodeid :: netsim_types:nodeid(), % from
     tick :: netsim_types:latency(),
-    route :: [netsim_types:route()],
+    route :: netsim_types:route(),
     resource :: netsim_types:resource()
 }).
 
