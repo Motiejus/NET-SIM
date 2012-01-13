@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 -export([start_link/3, add_link/2, send_event/1, tick/2, finalize/1,
-        state/1, stop/1]).
+        state/1, stop/1, reset/1]).
 
 -export([init/1, handle_cast/2, handle_call/3, code_change/3,
         handle_info/2, terminate/2]).
@@ -58,6 +58,10 @@ state(NodeId) ->
 
 stop(NodeId) ->
     gen_server:cast(NodeId, stop).
+
+%% @doc Resets TX/RX counters.
+reset(NodeId) ->
+    gen_server:call(NodeId, reset).
 
 %% =============================================================================
 
@@ -203,6 +207,18 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
 
     {reply, ok, State#state{queues=Queues1}};
 
+
+%% @doc Reset TX/RX counters
+handle_call(reset, _, #state{queues=Queues}=State) ->
+    Queues1 = 
+        lists:map(
+            fun ({{From, To, Cost, {_, _}}, Queue}) ->
+                {{From, To, Cost, {0, 0}}, Queue}
+            end,
+            Queues
+        ),
+
+    {reply, ok, State#state{queues=Queues1}};
 
 %% @doc Send traffic info to stats.
 handle_call(finalize, _, #state{tick=Tick, nodeid=NodeId, queues=Queues}=State) ->
