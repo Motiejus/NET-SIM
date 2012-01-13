@@ -55,10 +55,11 @@ state() ->
     {next_state, send_tick, #state{}}.
 wait_for_job(#event{}=Event, #state{tick=Tick}=State) ->
     Event1 = Event#event{tick=Tick},
-    netsim_serv:send_event(Event1),
 
     % Reset counters:
     [netsim_serv:reset(N) || N <- netsim_sup:list_nodes()],
+
+    netsim_serv:send_event(Event1),
 
     {next_state, send_tick, State#state{event=Event1}, 0}.
 
