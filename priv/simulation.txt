@@ -1,5 +1,5 @@
 %% { 'event', Time :: latency(), add_resource, resource() }
 
-{'event',  1, add, {kedainiai, 1}}.
-{'event', 30, del, {kedainiai, 1}}.
+{'event', 1, add, {kedainiai, 1}}.
+{'event', 1, del, {kedainiai, 1}}.
 %{'event', 20, add, {kedainiai, 3}}.

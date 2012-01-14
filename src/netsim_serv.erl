@@ -208,7 +208,7 @@ handle_call({add_link, {From0, To0, Metrics}}, _From,
     {reply, ok, State#state{queues=Queues1}};
 
 
-%% @doc Reset TX/RX counters
+%% @doc Reset TX/RX counters and internal tick
 handle_call(reset, _, #state{queues=Queues}=State) ->
     Queues1 = 
         lists:map(
@@ -218,7 +218,7 @@ handle_call(reset, _, #state{queues=Queues}=State) ->
             Queues
         ),
 
-    {reply, ok, State#state{queues=Queues1}};
+    {reply, ok, State#state{queues=Queues1, tick=0}};
 
 %% @doc Send traffic info to stats.
 handle_call(finalize, _, #state{tick=Tick, nodeid=NodeId, queues=Queues}=State) ->

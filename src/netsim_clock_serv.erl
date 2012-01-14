@@ -61,7 +61,7 @@ wait_for_job(#event{}=Event, #state{tick=Tick}=State) ->
 
     netsim_serv:send_event(Event1),
 
-    {next_state, send_tick, State#state{event=Event1}, 0}.
+    {next_state, send_tick, State#state{event=Event1, tick=1}, 0}.
 
 %% @doc Just a tick for every node
 %%

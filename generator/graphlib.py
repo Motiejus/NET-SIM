@@ -126,7 +126,7 @@ class Graph:
     def simulation_file(self):
         Node = ntpl(self.dimensions) % (0, 0)
         return "{'event', 1, add, %s}.\n"\
-                "{'event', 2, del, %s}." % (Node, Node)
+                "{'event', 1, del, %s}." % (Node, Node)
 
     def settings_file(self):
         return "{max_latency, 20000}.\n" \
